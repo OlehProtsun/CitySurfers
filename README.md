@@ -1,4 +1,4 @@
-# CitySurfers — Stage 4 backend
+# CitySurfers — Stage 5 backend
 
 .NET 10 modular monolith: API → Application/Infrastructure; Application → Domain.
 MongoDB-specific code stays in Infrastructure. Domain owns run state and lifecycle rules.
@@ -25,6 +25,7 @@ Atlas must allow the machine or hosting provider's network access; the database 
 | `MongoDb__ConnectionString` | Required; secret supplied outside source control |
 | `MongoDb__DatabaseName` | `citysurfers` |
 | `DemoData__SeedOnStartup` | `true`; set to `false` to disable inserting demo accounts |
+| `DemoData__ResetRunsOnStartup` | `false`; opt-in deletion of demo-user runs on API startup; requires seeding |
 | `Cors__AllowedOrigins__0` | Deployed frontend origin, e.g. `https://frontend.example` |
 | `ASPNETCORE_ENVIRONMENT` | Use `Production` for deployment |
 | `ASPNETCORE_HTTP_PORTS` | `8080` in the Docker image |
@@ -51,6 +52,7 @@ Missing/invalid Mongo configuration or failed initialization stops startup with 
 | `GET /health` | `200` process liveness; no database query |
 | `GET /health/ready` | `200` when Mongo responds; `503` when unavailable |
 | `POST /api/auth/login` | Persisted user data on `200`; generic `401` for invalid credentials |
+| `GET /api/home` | Compact bootstrap: today rank/points, nullable active-run metrics, existing primary next goal; idle is `200` |
 | `POST /api/runs` | `201` active run; `409` if the demo user already has one |
 | `GET /api/runs/active` | Active run and competition snapshot; `404` if none exists |
 | `GET /api/runs/{runId}` | Active run response or completed post-run summary; `404` for missing/foreign runs |
@@ -139,6 +141,51 @@ it returns `rival_points` from the monthly rival's `pointsToPass`. Without eithe
 it returns `200` with `goal: null`. Models contain semantic data, not localized UI sentences.
 No new MongoDB collections, rival relationships or fake competitor documents are introduced.
 
+### Stage 5 frontend bootstrap and repeatable demo
+
+After demo login, `GET /api/home` supplies `today` (rank and points), nullable `activeRun`
+(id, startedAtUtc, distanceMeters, durationSeconds, averagePaceSecondsPerKm), and nullable `nextGoal`.
+It composes the existing leaderboard and goal services; it does not include full history, leaderboards,
+analytics or map zones. Pace is the stored seconds/km value, nullable at zero distance.
+Idle and null-goal states return `200` with explicit JSON nulls.
+
+Recommended frontend sequence:
+
+```text
+POST /api/auth/login
+GET  /api/home
+
+# Dedicated screens / lazy loading
+GET /api/map/activity
+GET /api/leaderboards/today
+GET /api/leaderboards/month
+GET /api/progress
+GET /api/runs/history
+
+# During and after a run
+POST  /api/runs
+PATCH /api/runs/{runId}/progress
+POST  /api/runs/{runId}/finish
+GET   /api/home
+```
+
+Today and Month use the same replaceable demo competitor ladder: 8, 24, 36, 50, 64 points
+around the fresh user. Real current-user points still aggregate persisted runs using each period's boundaries.
+A clean demo progresses from 0 points/#41 through 16/#40, 30/#39, 41/#38 to 59/#37.
+After all four overtakes and finish, the monthly rival is #36 with 64 points: gap 5, points to pass 6.
+Home prefers `run_overtake` while a target exists and falls back to `rival_points` afterward.
+These competitor scores are demo presentation data, not permanent scoring rules.
+
+**Reset warning:** `DemoData__ResetRunsOnStartup=true` deletes all active and completed runs belonging
+only to the persisted demo user on every API startup. It preserves that user's document, other users,
+other users' runs, collections and indexes. Leave it `false` (the default) to preserve runs across restarts.
+Reset requires `DemoData__SeedOnStartup=true`; the invalid combination fails startup validation.
+There is no HTTP reset endpoint. Enable this switch intentionally through operator configuration for a fresh demo.
+
+For browser integration, set `Cors__AllowedOrigins__0=https://frontend.example` to your frontend origin
+(and numbered entries for additional origins). Production permits only configured origins; credentials are disabled.
+Allowed/disallowed origins and PATCH content-type preflight are covered by integration tests and the Mongo smoke.
+
 ## Docker deployment
 
 ```sh
@@ -161,7 +208,7 @@ Before production, replace `DemoAuthService` and demo credential storage with re
 
 ## Validation status
 
-See `PLAN.md` for Stage 4 completion and acceptance criteria.
+See `PLAN.md` for Stage 5 completion and acceptance criteria.
 Local MongoDB smoke checks verify persistence, restart idempotence, unique username enforcement, seeding configuration, and database outage behavior.
 These checks do not establish connectivity to your Atlas cluster.
 
@@ -202,6 +249,24 @@ The check reuses the local `citysurfers-mongo` container, requires no active dem
 leaves one completed run and removes its temporary API container. It verifies idle and active goals,
 distance/target changes, monthly fallback, Mongo score deltas, unchanged collections and restart persistence.
 Accumulated monthly points may yield rank one; in that case null rival/goal is expected.
+
+Stage 5 validation: build with zero warnings/errors, all 161 automated tests, Home and existing OpenAPI
+contracts, CORS integration tests, Docker image build, and the real Mongo Stage 5 smoke passed.
+Registry tag lookup returned EOF; Docker validation used an ignored copy of the existing Dockerfile
+with only the .NET 10 base-image references pinned to cached digests. The repository Dockerfile is unchanged.
+
+```powershell
+docker build -t citysurfers-api:stage5 .
+pwsh -NoProfile -File tests/Stage5.MongoSmoke.ps1
+```
+
+The Stage 5 check reuses local `citysurfers-mongo` and creates `citysurfers_stage5_smoke`.
+It refuses an existing database; use `-Database citysurfers_stage5_smoke_unique` if needed.
+It verifies clean Home, all four rank transitions in both leaderboards, 59-point finish, the 6-point rival,
+CORS/preflight, OpenAPI, history/progress, persistence with reset disabled, and reset with it enabled.
+An existing demo account with a non-default id, unrelated users/runs, and indexes verify reset isolation.
+The check removes its temporary API container and only the database it created, including on failure.
+It does not verify Atlas connectivity or deployed frontend behavior.
 
 References: [MongoDB C# driver](https://www.mongodb.com/docs/drivers/csharp/current/),
 [ASP.NET Core](https://learn.microsoft.com/aspnet/core/).

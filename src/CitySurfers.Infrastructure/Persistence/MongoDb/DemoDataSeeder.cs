@@ -50,5 +50,12 @@ internal sealed class DemoDataSeeder(IMongoDatabase database, IOptions<DemoDataO
             if (!await users.Find(user => user.Username == "demo").AnyAsync(cancellationToken))
                 throw;
         }
+
+        if (options.Value.ResetRunsOnStartup)
+        {
+            var demoUser = await users.Find(user => user.Username == "demo").SingleAsync(cancellationToken);
+            await database.GetCollection<RunDocument>("runs").DeleteManyAsync(
+                run => run.UserId == demoUser.Id, cancellationToken);
+        }
     }
 }

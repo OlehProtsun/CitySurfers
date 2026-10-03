@@ -8,6 +8,23 @@ namespace CitySurfers.IntegrationTests;
 public sealed class RivalApiTests
 {
     [Fact]
+    public async Task CompletedDemoRunLeavesSixPointsToNextMonthlyRival()
+    {
+        await using var app = new ApiFactory();
+        using var client = app.CreateClient();
+        var run = (await (await client.PostAsync("/api/runs", null)).Content
+            .ReadFromJsonAsync<CitySurfers.Api.Contracts.RunResponse>())!;
+        (await client.PostAsJsonAsync($"/api/runs/{run.Id}/finish",
+            new { distanceMeters = 5500, durationSeconds = 1650 })).EnsureSuccessStatusCode();
+        var result = (await client.GetFromJsonAsync<RivalResponse>("/api/rivals/current"))!;
+        Assert.Equal(new CurrentUserRank(37, 59), result.CurrentUser);
+        Assert.Equal(36, result.Rival!.Rank);
+        Assert.Equal(64, result.Rival.Points);
+        Assert.Equal(5, result.Rival.PointsGap);
+        Assert.Equal(6, result.Rival.PointsToPass);
+    }
+
+    [Fact]
     public async Task RivalContractUsesMonthlyStandingsAndCurrentUser()
     {
         await using var app = new ApiFactory();

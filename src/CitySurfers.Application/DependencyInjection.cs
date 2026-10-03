@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<Leaderboards.LeaderboardService>();
         services.AddScoped<Rivals.RivalService>();
         services.AddScoped<Goals.NextGoalService>();
+        services.AddScoped<Home.HomeService>();
         return services;
     }
 }

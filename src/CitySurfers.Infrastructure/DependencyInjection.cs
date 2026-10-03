@@ -27,7 +27,10 @@ public static class DependencyInjection
                 "MongoDb:DatabaseName must be a valid non-empty database name.")
             .ValidateOnStart();
         services.AddOptions<DemoDataOptions>()
-            .Bind(configuration.GetSection(DemoDataOptions.SectionName));
+            .Bind(configuration.GetSection(DemoDataOptions.SectionName))
+            .Validate(options => !options.ResetRunsOnStartup || options.SeedOnStartup,
+                "DemoData:ResetRunsOnStartup requires DemoData:SeedOnStartup=true.")
+            .ValidateOnStart();
         services.AddSingleton<IMongoClient>(provider =>
         {
             var options = provider.GetRequiredService<IOptions<MongoDbOptions>>().Value;

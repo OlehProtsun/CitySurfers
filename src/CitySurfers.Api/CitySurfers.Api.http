@@ -1,15 +1,81 @@
 @CitySurfers.Api_HostAddress = http://localhost:5092
+# Set this to the id returned by Start run.
+@runId = replace-with-run-id
 
+### Liveness
 GET {{CitySurfers.Api_HostAddress}}/health
 
-###
+### Readiness
 GET {{CitySurfers.Api_HostAddress}}/health/ready
 
-###
+### Demo login (fictional credentials; no token/session)
 POST {{CitySurfers.Api_HostAddress}}/api/auth/login
 Content-Type: application/json
 
-{
-  "username": "demo",
-  "password": "1234"
-}
+{"username":"demo","password":"1234"}
+
+### Home bootstrap
+GET {{CitySurfers.Api_HostAddress}}/api/home
+
+### Start run; copy response id into runId
+POST {{CitySurfers.Api_HostAddress}}/api/runs
+
+### Active run
+GET {{CitySurfers.Api_HostAddress}}/api/runs/active
+
+### Run by id
+GET {{CitySurfers.Api_HostAddress}}/api/runs/{{runId}}
+
+### First overtake (+16 points)
+PATCH {{CitySurfers.Api_HostAddress}}/api/runs/{{runId}}/progress
+Content-Type: application/json
+
+{"distanceMeters":1200,"durationSeconds":360}
+
+### Second overtake (+14 points, 30 total)
+PATCH {{CitySurfers.Api_HostAddress}}/api/runs/{{runId}}/progress
+Content-Type: application/json
+
+{"distanceMeters":2500,"durationSeconds":750}
+
+### Third overtake (+11 points, 41 total)
+PATCH {{CitySurfers.Api_HostAddress}}/api/runs/{{runId}}/progress
+Content-Type: application/json
+
+{"distanceMeters":4000,"durationSeconds":1200}
+
+### Fourth overtake (+18 points, 59 total)
+PATCH {{CitySurfers.Api_HostAddress}}/api/runs/{{runId}}/progress
+Content-Type: application/json
+
+{"distanceMeters":5500,"durationSeconds":1650}
+
+### Finish run
+POST {{CitySurfers.Api_HostAddress}}/api/runs/{{runId}}/finish
+Content-Type: application/json
+
+{"distanceMeters":6800,"durationSeconds":2210}
+
+### Home after finish
+GET {{CitySurfers.Api_HostAddress}}/api/home
+
+### Run history
+GET {{CitySurfers.Api_HostAddress}}/api/runs/history?limit=10
+
+### Personal progress
+GET {{CitySurfers.Api_HostAddress}}/api/progress
+
+### Today leaderboard
+GET {{CitySurfers.Api_HostAddress}}/api/leaderboards/today
+
+### Monthly leaderboard
+GET {{CitySurfers.Api_HostAddress}}/api/leaderboards/month
+
+### Current rival
+GET {{CitySurfers.Api_HostAddress}}/api/rivals/current
+
+### Next goal
+GET {{CitySurfers.Api_HostAddress}}/api/goals/next
+
+### Privacy-safe activity map
+GET {{CitySurfers.Api_HostAddress}}/api/map/activity?period=today

@@ -1,883 +1,717 @@
-# PLAN.md — Stage 4: MVP Motivation Layer — Rival + Next Goal
+# PLAN.md — Stage 5: Frontend Integration Readiness + Deterministic MVP Demo
 
 ## 0. Execution Directive
 
-This file is the source of truth for Stage 4.
+This file is the source of truth for Stage 5.
 
 The implementing AI agent must:
 
-1. Read `AGENT.md` first and follow it as the engineering and behavioral rule set.
+1. Read `AGENT.md` first and follow it as the authoritative engineering and behavioral rule set.
 2. Read this `PLAN.md`.
 3. Do **not** perform a repository-wide analysis.
-4. Do **not** create a new roadmap, architecture proposal, or alternative Stage 4.
-5. Do **not** re-plan or re-implement Stage 1, Stage 2, or Stage 3.
-6. Do **not** scan the entire repository before starting.
-7. Inspect only files directly required by the current task and their immediate dependencies.
+4. Do **not** create another roadmap or implementation plan.
+5. Do **not** re-evaluate whether this is the correct next stage.
+6. Do **not** redesign Stage 1–4.
+7. Inspect only files directly required by the current unfinished task and their immediate dependencies.
 8. Start implementing the first unfinished task immediately.
-9. Complete tasks in the order defined in this plan unless a direct dependency requires a small local reordering.
+9. Complete tasks in the order defined here unless a direct dependency requires a small local reordering.
 10. Preserve the existing N-Layer architecture and current project conventions.
-11. Reuse the existing running, leaderboard, current-user, MongoDB, error-handling, DI, and testing infrastructure.
-12. Do not introduce new infrastructure unless explicitly required by this plan.
-13. Validate meaningful changes with build/tests as work progresses.
-14. If the real code differs slightly from this plan, make the smallest safe correction and continue.
-15. A small mismatch is **not** permission to perform repository-wide exploration.
-16. Keep the implementation MVP-focused and replaceable.
-17. Do not silently invent permanent product rules for areas marked TBD in `AppContext.md`.
+11. Reuse existing services, providers, stores, error handling, MongoDB setup, DI, test infrastructure, and Docker setup.
+12. Do not introduce new infrastructure unless this plan explicitly requires it.
+13. Keep all MVP/demo-only behavior isolated and replaceable.
+14. Validate meaningful changes with focused tests while working.
+15. Run the full regression suite before declaring the stage complete.
+16. A small mismatch between this plan and the real code is **not** permission to scan the whole repository.
+17. If a referenced symbol has a slightly different name, find the direct equivalent, make the smallest safe adaptation, and continue.
+18. Do not start frontend implementation or Stage 6.
+
+Required workflow:
+
+```text
+Read AGENT.md
+→ Read PLAN.md
+→ Find first unfinished task
+→ Inspect only required files
+→ Implement
+→ Test
+→ Mark task complete
+→ Continue
+```
+
+Do not use this workflow:
+
+```text
+Analyze repository
+→ create architecture report
+→ invent roadmap
+→ redesign modules
+→ ask for approval
+```
 
 ---
 
 # 1. Verified Starting Point
 
-Stages 1–3 are complete.
+Stages 1–4 are complete.
 
-The backend currently contains:
+The backend currently provides:
 
-- ASP.NET Core API;
-- .NET 10;
-- N-Layer / modular monolith structure;
+- ASP.NET Core / .NET 10 API;
+- N-Layer modular architecture;
 - MongoDB persistence;
 - persistent demo user;
 - demo authentication;
-- `ICurrentUserAccessor`;
-- persistent `RunSession`;
-- run start / progress / finish flow;
-- deterministic demo overtake targets;
-- persistent run-local overtake events;
-- persistent run-local points;
-- current-user run history;
-- personal progress aggregates;
+- server-side current-user resolution;
+- run start / progress / finish lifecycle;
+- deterministic demo run competition;
+- overtake events;
+- persistent run points;
+- post-run summary;
+- run history;
+- personal progress;
 - daily leaderboard;
 - monthly leaderboard;
-- deterministic demo leaderboard population;
 - privacy-safe Kraków activity map;
-- Kraków calendar-period resolution;
-- Docker support;
-- automated unit and integration tests;
-- real Mongo smoke validation.
+- monthly rival;
+- primary next-goal selection;
+- Docker image;
+- liveness and Mongo readiness health checks;
+- centralized Problem Details handling;
+- configurable CORS;
+- automated unit/integration tests;
+- real Mongo smoke tests.
 
-Existing important components include:
+Important existing modules/components:
 
 ```text
+ICurrentUserAccessor
+IUserStore
+
 RunSession
 RunSessionService
 IRunSessionStore
 IRunCompetitionProvider
 DemoRunCompetitionProvider
 
-IRunHistoryReader
 RunHistoryService
+IRunHistoryReader
+ProgressService
 
 LeaderboardService
 ILeaderboardProvider
 DemoLeaderboardProvider
 
-ProgressService
+RivalService
+NextGoalService
 
-ICurrentUserAccessor
+IActivityMapProvider
+DemoKrakowActivityMapProvider
 ```
 
 Do not replace these components.
 
-Stage 4 must build on top of them.
+---
+
+# 2. Stage 4 Review — Preserve Existing Behavior
+
+Stage 4 correctly added:
+
+```http
+GET /api/rivals/current
+GET /api/goals/next
+```
+
+It correctly:
+
+- derives the monthly rival from the existing monthly leaderboard;
+- selects the competitor directly above the current user;
+- returns `rival: null` for rank #1;
+- calculates `pointsGap` and `pointsToPass`;
+- prefers an active-run overtake target;
+- falls back to the monthly rival;
+- returns a valid null-goal state;
+- reuses `IRunCompetitionProvider`;
+- reuses `LeaderboardService`;
+- introduces no rival persistence or new Mongo collection;
+- keeps controllers thin;
+- keeps semantic data instead of localized UI text.
+
+Do not rewrite Stage 4 logic.
 
 ---
 
-# 2. Why Stage 4 Exists
+# 3. Why Stage 5 Exists
 
-The backend already exposes most of the raw data required by the Core MVP.
+The Core MVP backend mechanics already exist.
 
-However, the frontend still has to interpret multiple endpoints to answer the most important product question:
-
-```text
-What should the runner try to achieve next?
-```
-
-The core product concept is not merely:
+The next backend work must make the system:
 
 ```text
-show statistics
+easy for frontend to consume
++
+repeatable for hackathon demos
++
+coherent across run / leaderboard / rival modules
++
+safe to configure for browser integration
 ```
 
-It is:
+There are three important gaps.
+
+## Gap A — Home Requires Multiple Requests
+
+The frontend currently needs several calls to build the initial Home / Live Run state:
 
 ```text
-show a short, achievable competitive objective
+login
+active run
+today leaderboard
+next goal
 ```
 
-The product should be able to tell the user things such as:
+Stage 5 adds one focused frontend home/bootstrap read model.
+
+## Gap B — Fresh Monthly Rival Is Not Reachable Enough
+
+Current demo monthly competitor scores are much larger than the run reward ladder.
+
+A fresh user can require roughly 201 points to pass the monthly rival, while one complete deterministic demo run awards only:
 
 ```text
-320 m to overtake Marta
+16 + 14 + 11 + 18 = 59 points
 ```
 
-or:
+That conflicts with the product principle of short, reachable next objectives.
 
-```text
-14 points to pass your monthly rival
-```
+Stage 5 fixes only the **replaceable demo competitor population**. It must not change real current-user scoring.
 
-Stage 4 introduces the minimal motivation layer required to provide that information.
+## Gap C — Demo State Accumulates
 
-This stage must connect:
+Persisted runs correctly survive restarts, but repeated hackathon presentations can move the demo user to different ranks or eventually to a null-rival state.
 
-```text
-Active run
-    +
-Run competition target
-    +
-Monthly leaderboard position
-    +
-Nearby demo competitor
-        ↓
-Primary next goal
-```
+Stage 5 adds an explicit opt-in startup reset for the demo user's runs.
+
+It must be disabled by default and must never be exposed through a public HTTP reset endpoint.
 
 ---
 
-# 3. Stage Goal
+# 4. Stage Goal
 
-At the end of Stage 4 the frontend must be able to obtain:
+At the end of Stage 5:
 
-1. the current user's monthly rival;
-2. the rival's rank and points;
-3. the current user's rank and points;
-4. the current point gap;
-5. the number of points required to move ahead of that rival;
-6. one primary next goal;
-7. an active-run overtake goal while a relevant run target exists;
-8. a monthly rival goal when there is no active run target;
-9. a valid zero-state when no goal exists;
-10. all of the above without introducing real social networking or multi-user persistence.
-
-The intended behavior is:
-
-```text
-NO ACTIVE RUN
-    ↓
-monthly leaderboard
-    ↓
-competitor directly above user
-    ↓
-RIVAL GOAL
-"14 points to move ahead of Marta"
-
-
-ACTIVE RUN
-    ↓
-IRunCompetitionProvider
-    ↓
-current overtake target
-    ↓
-RUN OVERTAKE GOAL
-"620 m to overtake Runner_92"
-
-
-ACTIVE RUN, ALL RUN TARGETS COMPLETED
-    ↓
-fallback
-    ↓
-MONTHLY RIVAL GOAL
-```
-
-Only one primary goal should be returned.
+1. the frontend can load its initial core state from `GET /api/home` after demo login;
+2. Home returns `200` even when there is no active run;
+3. Home contains today's current-user rank and points;
+4. Home contains a nullable compact active-run summary;
+5. Home contains the existing primary next goal;
+6. Home reuses existing leaderboard and goal logic;
+7. the demo monthly leaderboard uses the same MVP point ladder as the daily demo leaderboard;
+8. a clean demo starts around rank `#41` with a reachable rival;
+9. one complete four-overtake demo run produces coherent `#41 → #37` progression;
+10. after that run, the next monthly rival is only a small number of points away;
+11. demo run history can be intentionally reset on startup through configuration;
+12. reset is disabled by default;
+13. reset affects only the demo user's runs;
+14. CORS behavior is explicitly tested;
+15. API examples cover the complete frontend demo flow;
+16. OpenAPI contains the Home endpoint;
+17. Docker + real Mongo smoke proves the deterministic showcase;
+18. no frontend code is added yet.
 
 ---
 
-# 4. Product Rule: One Primary Goal
+# 5. Intended Deterministic Demo Narrative
 
-Do not return a list of competing recommendations in Stage 4.
+After an intentional demo reset, the backend should support this story.
 
-The application needs one primary motivational objective.
-
-Temporary Stage 4 priority:
+## Fresh state
 
 ```text
-1. Active-run overtake target
-2. Monthly rival
-3. No goal
+Today:
+#41
+0 pts
+
+Next goal:
+~9 points to pass #40
 ```
 
-This directly supports the UX principle that during a run one objective should normally remain visually dominant.
+## Start run
 
-Do not add goal scoring, AI ranking, weighted goal selection, or recommendation engines.
+```text
+Runner_92
+1200 m to overtake
++16 potential points
+#41 → #40
+```
+
+## Overtake progression
+
+Existing run reward totals are:
+
+```text
+0
+16
+30
+41
+59
+```
+
+The clean demo leaderboard should align approximately as:
+
+```text
+0  → #41
+16 → #40
+30 → #39
+41 → #38
+59 → #37
+```
+
+## After finish
+
+Expected showcase state:
+
+```text
+Current monthly points: 59
+Current rank: #37
+Next rival rank: #36
+Next rival points: 64
+Points gap: 5
+Points to pass: 6
+```
+
+These numbers are deterministic demo presentation data, not permanent product scoring rules.
 
 ---
 
-# 5. Temporary MVP Rival Rule
+# 6. Demo Leaderboard Alignment
 
-`AppContext.md` intentionally leaves final rival-selection rules TBD.
+Modify only the replaceable demo leaderboard population.
 
-Stage 4 therefore uses an explicitly temporary and replaceable MVP rule.
+Do not change:
 
-Definition:
+- real current-user point aggregation;
+- run reward calculation;
+- overtake rewards;
+- target distance thresholds;
+- `LeaderboardService` aggregation;
+- period boundaries;
+- rank sorting;
+- rival selection;
+- `pointsToPass` calculation.
 
-```text
-The current monthly rival is the competitor
-immediately above the current user
-in the current monthly leaderboard.
-```
+## Stage 5 Demo Rule
 
-Example:
-
-```text
-#17 Marta      1451 pts
-#18 You        1438 pts
-#19 Piotr      1410 pts
-```
-
-Current rival:
+For MVP/demo purposes:
 
 ```text
-Marta
+LeaderboardPeriod.Today competitor points
+=
+existing daily demo point ladder
+
+LeaderboardPeriod.Month competitor points
+=
+the same demo point ladder
 ```
 
-Do not select:
+The existing ladder around the user is approximately:
 
-- friends;
-- previous race opponents;
-- geographically nearby runners;
-- users with similar pace;
-- users based on Game Rating;
-- random runners;
-- manually persisted rivals.
+```text
+8
+24
+36
+50
+64
+...
+```
 
-Those mechanisms belong to later stages.
+This is intentionally compatible with cumulative run rewards:
+
+```text
+0
+16
+30
+41
+59
+```
+
+Result:
+
+```text
+#41 → #40 → #39 → #38 → #37
+```
+
+Do not modify `ILeaderboardProvider`.
+
+Do not create persisted leaderboard rows.
+
+Do not create a new scoring engine.
 
 ---
 
-# 6. Rival Point Semantics
+# 7. Cross-Module Demo Consistency Tests
 
-Return two different concepts.
+Add focused tests proving clean-state coherence.
 
-## PointsGap
-
-Informational difference:
+Minimum expected ranks:
 
 ```text
-PointsGap = max(0, RivalPoints - CurrentUserPoints)
+0 points  → #41
+16 points → #40
+30 points → #39
+41 points → #38
+59 points → #37
 ```
 
-Example:
+Verify this for the demo monthly leaderboard and, where already covered, the daily leaderboard.
+
+At 59 monthly points verify:
 
 ```text
-Rival = 1451
-User  = 1438
-
-PointsGap = 13
+current rank = #37
+rival rank = #36
+rival points = 64
+pointsGap = 5
+pointsToPass = 6
 ```
 
-## PointsToPass
+If deterministic tie-breaking requires a tiny adjustment, preserve the one-position-per-overtake narrative around the clean demo state.
 
-Points required to unambiguously exceed the rival:
-
-```text
-PointsToPass =
-    max(1, RivalPoints - CurrentUserPoints + 1)
-```
-
-Example:
-
-```text
-Rival = 1451
-User  = 1438
-
-PointsToPass = 14
-```
-
-This avoids depending on internal leaderboard tie-breaking rules.
-
-Do not change existing leaderboard ordering or ranking semantics in this stage.
+Do not change the run competition model to force tests to pass.
 
 ---
 
-# 7. Rival Zero State
+# 8. Home Read Model
 
-If the current user is already rank `#1` in the monthly leaderboard:
-
-```text
-Rival = null
-```
-
-This is not an error.
-
-Return HTTP `200`.
-
-Do not return `404`.
-
-Do not manufacture a stronger fake competitor just to ensure a rival always exists.
-
----
-
-# 8. Real vs Demo Boundary
-
-## Real now
-
-Continue deriving from actual persisted current-user run data:
-
-- current user's monthly points;
-- active-run points where existing leaderboard rules include them;
-- current user's monthly leaderboard rank;
-- current run;
-- current run distance;
-- completed overtakes;
-- current run competition snapshot.
-
-## Demo now
-
-Continue keeping replaceable:
-
-- other leaderboard competitors;
-- other users' scores;
-- rival identity;
-- live run opponents;
-- run target thresholds;
-- run target rewards.
-
-Do not persist demo competitors as MongoDB users.
-
-Do not create fake run documents for demo competitors.
-
----
-
-# 9. Architecture
-
-Add two focused Application modules:
+Add:
 
 ```text
 CitySurfers.Application
-│
-├── Rivals
-│   ├── RivalModels.cs
-│   └── RivalService.cs
-│
-└── Goals
-    ├── NextGoalModels.cs
-    └── NextGoalService.cs
+└── Home
+    ├── HomeModels.cs
+    └── HomeService.cs
 ```
 
-Add thin API controllers:
+Add:
 
 ```text
 CitySurfers.Api
 └── Controllers
-    ├── RivalsController.cs
-    └── GoalsController.cs
+    └── HomeController.cs
 ```
 
-Do not add another Infrastructure implementation unless a concrete dependency requires one.
+This is a frontend bootstrap/read model, not a new business domain.
 
-The Stage 4 logic can use existing providers.
+Do not move logic out of existing modules into Home.
 
 ---
 
-# 10. RivalService
-
-Implement:
-
-```text
-RivalService
-```
-
-Responsibility:
-
-```text
-Determine the current monthly rival
-using existing leaderboard data.
-```
-
-Preferred dependency:
-
-```text
-LeaderboardService
-```
-
-Do not duplicate:
-
-- period calculations;
-- run history aggregation;
-- active-run point inclusion;
-- current-user point calculation;
-- leaderboard ranking.
-
-Those already belong to `LeaderboardService`.
-
-Conceptual flow:
-
-```text
-RivalService
-    ↓
-LeaderboardService.GetAsync(Month)
-    ↓
-CurrentUser.Rank
-    ↓
-find leaderboard row with Rank = CurrentUser.Rank - 1
-    ↓
-calculate gap
-    ↓
-RivalResponse
-```
-
-The row should normally be available through `AroundMe`.
-
-If implementation details require a small safe fallback to `Top`, it is acceptable.
-
-Do not make another Mongo query merely to find the rival.
-
----
-
-# 11. Rival Application Models
-
-Create a clear model similar to:
-
-```text
-RivalSnapshot
-    DisplayName
-    Rank
-    Points
-    PointsGap
-    PointsToPass
-```
-
-Response should also contain current-user leaderboard information and period information.
-
-Recommended conceptual shape:
-
-```text
-RivalResponse
-    Period
-    PeriodStartUtc
-    PeriodEndUtc
-    CurrentUser
-        Rank
-        Points
-    Rival?
-        DisplayName
-        Rank
-        Points
-        PointsGap
-        PointsToPass
-```
-
-Use existing leaderboard models where appropriate instead of creating unnecessary duplicate types.
-
-Do not expose internal demo competitor keys unless the frontend actually requires them.
-
----
-
-# 12. Rival API
+# 9. Home API
 
 Add:
 
 ```http
-GET /api/rivals/current
+GET /api/home
 ```
 
-Stage 4 rival period:
-
-```text
-month
-```
-
-No query parameter is required.
-
-Example response:
-
-```json
-{
-  "period": "month",
-  "periodStartUtc": "2026-09-30T22:00:00Z",
-  "periodEndUtc": "2026-10-31T23:00:00Z",
-  "currentUser": {
-    "rank": 18,
-    "points": 1438
-  },
-  "rival": {
-    "displayName": "Marta_17",
-    "rank": 17,
-    "points": 1451,
-    "pointsGap": 13,
-    "pointsToPass": 14
-  }
-}
-```
-
-Top-rank zero-state example:
-
-```json
-{
-  "period": "month",
-  "periodStartUtc": "...",
-  "periodEndUtc": "...",
-  "currentUser": {
-    "rank": 1,
-    "points": 4000
-  },
-  "rival": null
-}
-```
-
-The controller must remain thin.
-
-No rival-selection logic belongs in the controller.
-
----
-
-# 13. NextGoalService
-
-Implement:
-
-```text
-NextGoalService
-```
-
-Responsibility:
-
-```text
-Return one primary actionable competitive goal.
-```
-
-Required dependencies may include:
-
-```text
-ICurrentUserAccessor
-IRunSessionStore
-IRunCompetitionProvider
-RivalService
-```
-
-Do not use exceptions to represent the normal condition:
-
-```text
-there is no active run
-```
-
-Read the active run directly through the existing store.
-
----
-
-# 14. Next Goal Selection Algorithm
-
-Implement exactly this Stage 4 priority.
-
-## Rule 1 — Active Run Overtake
-
-If an active run exists:
-
-1. obtain its competition snapshot using existing `IRunCompetitionProvider`;
-2. inspect `CurrentTarget`;
-3. if `CurrentTarget != null`, return a run-overtake goal.
-
-Conceptual response:
-
-```text
-Type = run_overtake
-Source = active_run
-TargetDisplayName = CurrentTarget.Opponent
-RemainingDistanceMeters = CurrentTarget.DistanceToOvertakeMeters
-PotentialPoints = CurrentTarget.PotentialPoints
-CurrentRank = CompetitionSnapshot.Rank
-TargetRank = CompetitionSnapshot.Rank - 1
-RunId = active run id
-```
-
-Do not recalculate overtake thresholds inside `NextGoalService`.
-
-`IRunCompetitionProvider` remains the source of truth.
-
-## Rule 2 — Monthly Rival
-
-If:
-
-```text
-there is no active run
-```
-
-or:
-
-```text
-an active run exists but CurrentTarget is null
-```
-
-then resolve the current monthly rival.
-
-If a rival exists:
-
-```text
-Type = rival_points
-Source = monthly_leaderboard
-TargetDisplayName = Rival.DisplayName
-RemainingPoints = Rival.PointsToPass
-CurrentRank = CurrentUser.Rank
-TargetRank = Rival.Rank
-```
-
-## Rule 3 — No Goal
-
-If neither source provides a goal:
-
-```text
-Goal = null
-```
-
-Return HTTP `200`.
-
----
-
-# 15. Next Goal Model
-
-Use semantic data.
-
-Do not put localized UI sentences inside Application.
+The endpoint returns `200` for normal application state, including when there is no active run.
 
 Recommended conceptual model:
 
 ```text
-NextGoal
-    Type
-    Source
-    TargetDisplayName
-    RunId?
-    RemainingDistanceMeters?
-    RemainingPoints?
-    PotentialPoints?
-    CurrentRank?
-    TargetRank?
+HomeResponse
+    Today
+        Rank
+        Points
+    ActiveRun?
+        Id
+        StartedAtUtc
+        DistanceMeters
+        DurationSeconds
+        AveragePaceSecondsPerKm
+    NextGoal?
 ```
 
-Wrapper:
+Reuse existing types where appropriate.
 
-```text
-NextGoalResponse
-    Goal?
-```
+In particular:
 
-Allowed Stage 4 types:
+- reuse the existing current-user leaderboard rank/points model for `Today` if clean;
+- reuse the existing Stage 4 `NextGoal` model;
+- do not create another next-goal DTO with duplicate semantics.
 
-```text
-run_overtake
-rival_points
-```
-
-Allowed sources:
-
-```text
-active_run
-monthly_leaderboard
-```
-
-Do not add an enum serialization framework unless already used by the project.
-
-Follow existing project serialization conventions.
-
----
-
-# 16. Next Goal API
-
-Add:
-
-```http
-GET /api/goals/next
-```
-
-Example during an active run:
+## Example — idle
 
 ```json
 {
-  "goal": {
-    "type": "run_overtake",
-    "source": "active_run",
-    "targetDisplayName": "Marta",
-    "runId": "abc123",
-    "remainingDistanceMeters": 620,
-    "remainingPoints": null,
-    "potentialPoints": 14,
-    "currentRank": 40,
-    "targetRank": 39
-  }
-}
-```
-
-Example without an active run:
-
-```json
-{
-  "goal": {
+  "today": {
+    "rank": 41,
+    "points": 0
+  },
+  "activeRun": null,
+  "nextGoal": {
     "type": "rival_points",
     "source": "monthly_leaderboard",
-    "targetDisplayName": "Marta_17",
+    "targetDisplayName": "<deterministic competitor>",
     "runId": null,
     "remainingDistanceMeters": null,
-    "remainingPoints": 14,
+    "remainingPoints": 9,
     "potentialPoints": null,
-    "currentRank": 18,
-    "targetRank": 17
+    "currentRank": 41,
+    "targetRank": 40
   }
 }
 ```
 
-Example zero-state:
+## Example — active run
 
 ```json
 {
-  "goal": null
+  "today": {
+    "rank": 41,
+    "points": 0
+  },
+  "activeRun": {
+    "id": "run-id",
+    "startedAtUtc": "2026-10-03T18:00:00Z",
+    "distanceMeters": 600,
+    "durationSeconds": 180,
+    "averagePaceSecondsPerKm": 300
+  },
+  "nextGoal": {
+    "type": "run_overtake",
+    "source": "active_run",
+    "targetDisplayName": "Runner_92",
+    "runId": "run-id",
+    "remainingDistanceMeters": 600,
+    "remainingPoints": null,
+    "potentialPoints": 16,
+    "currentRank": 41,
+    "targetRank": 40
+  }
 }
 ```
 
----
-
-# 17. Relationship to Existing Run Competition
-
-Do not replace:
-
-```text
-IRunCompetitionProvider
-DemoRunCompetitionProvider
-CompetitionSnapshot
-TargetSnapshot
-```
-
-The existing run competition remains responsible for:
-
-- deterministic run targets;
-- threshold evaluation;
-- overtake creation;
-- potential reward;
-- current run target.
-
-Stage 4 only consumes its snapshot.
-
-Do not move Stage 2 competition logic into the new Goals module.
+Do not hard-code competitor names in Home logic.
 
 ---
 
-# 18. Relationship to Existing Leaderboard
+# 10. HomeService Responsibilities
 
-Do not replace:
+Implement `HomeService` as orchestration only.
+
+Preferred dependencies:
 
 ```text
+ICurrentUserAccessor
+IRunSessionStore
 LeaderboardService
-ILeaderboardProvider
-DemoLeaderboardProvider
-```
-
-The leaderboard remains responsible for:
-
-- period calculation;
-- current-user score;
-- completed run point aggregation;
-- active-run point inclusion;
-- demo city standings;
-- rank calculation.
-
-The rival module derives meaning from those standings.
-
-Do not duplicate leaderboard calculations.
-
----
-
-# 19. Relationship to RunSession
-
-Do not add rival state to `RunSession`.
-
-`RunSession` must continue to represent:
-
-```text
-one running-session lifecycle
-```
-
-It must not become responsible for:
-
-- monthly rival identity;
-- global leaderboard relationships;
-- next-goal orchestration;
-- season-wide motivation.
-
-No `CurrentRival` field belongs in the run document.
-
----
-
-# 20. Persistence
-
-Stage 4 must introduce:
-
-```text
-ZERO new MongoDB collections
-```
-
-Do not create:
-
-```text
-rivals
-goals
-motivation
-leaderboard
-seasons
-competitors
-```
-
-collections.
-
-Rivals and goals are derived views for this MVP.
-
-No migration is required.
-
-No background job is required.
-
-No caching layer is required.
-
----
-
-# 21. Dependency Injection
-
-Register new Application services through the existing Application DI module.
-
-Expected additions:
-
-```text
-RivalService
 NextGoalService
 ```
 
-Use service lifetimes consistent with their dependencies and current conventions.
+Responsibilities:
 
-Do not introduce a service locator.
+1. resolve current user id;
+2. obtain today's leaderboard from `LeaderboardService`;
+3. read the optional active run from `IRunSessionStore`;
+4. obtain the existing primary goal from `NextGoalService`;
+5. compose the Home response.
 
-Do not manually instantiate application services inside controllers.
+Do not duplicate:
+
+- leaderboard calculations;
+- current-user point aggregation;
+- rival selection;
+- goal priority;
+- competition target calculation;
+- pace calculation;
+- Mongo-specific code.
+
+A second active-run read caused by calling `NextGoalService` is acceptable for this MVP.
+
+Do not add caching or a complex shared query context solely to avoid one small duplicate read.
 
 ---
 
-# 22. Error Handling
+# 11. Home Normal States
 
-Normal states must not become errors.
-
-These are valid `200` states:
+`GET /api/home` must treat these as normal:
 
 ```text
 no active run
 no rival
 no next goal
-active run with no remaining run target
 ```
 
-Existing unexpected-error handling remains unchanged.
+Return nullable fields and HTTP `200`.
 
-Do not leak:
+Do not change the existing behavior of:
 
-- MongoDB details;
-- stack traces;
-- internal provider details.
+```http
+GET /api/runs/active
+```
+
+Stage 5 adds a frontend-friendly bootstrap endpoint without breaking Stage 1–4 contracts.
 
 ---
 
-# 23. API Contract Stability
+# 12. Home Must Stay Small
 
-Do not break existing Stage 1–3 endpoints.
+Do not include in Home:
 
-Existing contracts must continue to work.
+- full run history;
+- full progress analytics;
+- top 10 leaderboard;
+- full monthly leaderboard;
+- activity-map zones;
+- routes;
+- achievements;
+- AI Coach text;
+- races;
+- future social data.
 
-Especially preserve:
+Dedicated screens continue using dedicated endpoints:
 
 ```text
+/api/leaderboards/*
+/api/progress
+/api/map/activity
+/api/runs/history
+/api/rivals/current
+```
+
+---
+
+# 13. Deterministic Demo Reset
+
+Extend `DemoDataOptions` with:
+
+```text
+ResetRunsOnStartup
+```
+
+Default:
+
+```text
+false
+```
+
+Environment key:
+
+```text
+DemoData__ResetRunsOnStartup
+```
+
+Add to `.env.example`:
+
+```text
+DemoData__ResetRunsOnStartup=false
+```
+
+This is an explicit hackathon/demo reset switch.
+
+---
+
+# 14. Reset Safety Rules
+
+When reset is `false`, current persistence behavior remains unchanged.
+
+When reset is `true`, startup initialization must:
+
+1. ensure the demo user exists;
+2. resolve the actual persisted demo-user id;
+3. delete only runs belonging to that demo user;
+4. preserve the demo user document;
+5. preserve indexes;
+6. preserve non-demo users;
+7. preserve runs belonging to other users;
+8. continue normal startup.
+
+Do not:
+
+- drop the database;
+- drop `runs`;
+- drop `users`;
+- remove indexes;
+- delete every run;
+- create a public reset endpoint;
+- expose database credentials.
+
+Mongo deletion logic stays in Infrastructure/startup initialization.
+
+Do not place it in Application or controllers.
+
+---
+
+# 15. Reset Configuration Validation
+
+Invalid configuration:
+
+```text
+ResetRunsOnStartup = true
+SeedOnStartup = false
+```
+
+must fail startup through strongly typed options validation with a sanitized clear message.
+
+Do not silently ignore this invalid combination.
+
+The reset option is disabled by default.
+
+It may be intentionally enabled for a deployed hackathon demo, but only through operator configuration.
+
+There must be no HTTP reset surface.
+
+---
+
+# 16. CORS Frontend Readiness
+
+Keep the existing configurable CORS implementation.
+
+Do not use `AllowAnyOrigin` in Production.
+
+Do not enable credentials.
+
+Add integration tests for:
+
+## Allowed origin
+
+Configured origin:
+
+```text
+https://frontend.example
+```
+
+must receive the expected:
+
+```http
+Access-Control-Allow-Origin
+```
+
+header.
+
+## Disallowed origin
+
+A different origin must not receive an allow-origin header.
+
+## Preflight
+
+Verify an `OPTIONS` preflight for a mutation such as:
+
+```http
+PATCH /api/runs/{runId}/progress
+```
+
+with the configured origin, method, and content-type header.
+
+Do not hard-code a real deployment domain into source code.
+
+---
+
+# 17. API Contract Stability
+
+Do not remove or rename existing Stage 1–4 endpoint paths:
+
+```http
 POST /api/auth/login
 
 POST /api/runs
@@ -892,645 +726,746 @@ GET /api/progress
 GET /api/leaderboards/today
 GET /api/leaderboards/month
 
+GET /api/rivals/current
+GET /api/goals/next
+
 GET /api/map/activity
 ```
 
-Do not require frontend changes to existing endpoints solely for Stage 4.
-
----
-
-# 24. Post-Run Summary
-
-Do not perform a large rewrite of `PostRunSummary`.
-
-The frontend can request:
+Add only:
 
 ```http
-GET /api/goals/next
+GET /api/home
 ```
 
-after finishing a run.
+Do not rename old JSON properties.
 
-It can request:
+Do not wrap all old responses in new envelopes.
+
+Do not add API versioning or GraphQL.
+
+---
+
+# 18. Authentication Boundary
+
+Do not implement real authentication in Stage 5.
+
+Current demo behavior remains:
+
+```text
+POST /api/auth/login
+→ validate fictional demo credentials
+→ return demo user data
+→ no JWT/session
+```
+
+Other endpoints continue to resolve the demo user server-side.
+
+Do not add:
+
+- JWT;
+- refresh tokens;
+- ASP.NET Identity;
+- OAuth;
+- authorization policies;
+- client-provided user id.
+
+Real authentication is a later replacement.
+
+---
+
+# 19. Error Handling
+
+Preserve the current centralized Problem Details behavior.
+
+Do not rewrite the exception handler unless a concrete Stage 5 test exposes a frontend contract problem.
+
+Home normal states return `200`.
+
+Unexpected errors remain sanitized.
+
+Do not expose:
+
+- Mongo driver messages;
+- credentials;
+- stack traces;
+- internal provider details.
+
+---
+
+# 20. OpenAPI
+
+Verify OpenAPI includes:
 
 ```http
-GET /api/rivals/current
+GET /api/home
 ```
 
-for the current rival state.
+with a correct `200` response schema.
 
-This avoids coupling run lifecycle logic with season-wide motivation logic.
+Verify existing Stage 1–4 paths remain present.
 
-A tiny non-breaking contract improvement is allowed only if directly required by existing tests or unavoidable implementation details.
+Development-only OpenAPI remains acceptable.
 
-Otherwise leave the run contract unchanged.
-
----
-
-# 25. Testing Strategy
-
-Stage 4 must include focused unit tests and API integration tests.
-
-Do not test implementation details.
-
-Test observable behavior.
+Do not add Swagger UI dependencies solely for Stage 5.
 
 ---
 
-# 26. RivalService Unit Tests
+# 21. CitySurfers.Api.http
+
+Expand:
+
+```text
+src/CitySurfers.Api/CitySurfers.Api.http
+```
+
+into a complete manual demo/frontend flow.
+
+Include at minimum:
+
+```text
+health
+readiness
+login
+home
+start run
+active run
+progress update
+finish run
+home after finish
+run history
+progress
+today leaderboard
+monthly leaderboard
+current rival
+next goal
+activity map
+```
+
+Use variables for host and run id where practical.
+
+Do not hard-code deployment secrets.
+
+---
+
+# 22. Home Tests
 
 Minimum cases:
 
-### Case 1 — Direct Competitor Above
-
-Given:
-
-```text
-#17 competitor
-#18 current user
-#19 competitor
-```
+### Case 1 — Fresh State
 
 Verify:
 
 ```text
-rival rank = 17
+Today rank/points present
+ActiveRun = null
+NextGoal present when rival exists
 ```
 
-### Case 2 — Gap
+### Case 2 — Active Run
 
-Verify:
+Verify active-run summary contains:
 
 ```text
-PointsGap = RivalPoints - CurrentUserPoints
+id
+startedAtUtc
+distance
+duration
+pace
 ```
 
-when rival has more points.
+### Case 3 — Active Run Goal
 
-### Case 3 — Points To Pass
+Verify Home returns existing `run_overtake` goal while a target exists.
 
-Verify:
+### Case 4 — Finished / Idle
+
+Verify Home returns `ActiveRun = null` and Stage 4 fallback goal.
+
+### Case 5 — Null Goal
+
+If no active target and no rival:
 
 ```text
-PointsToPass = RivalPoints - CurrentUserPoints + 1
+NextGoal = null
 ```
 
-with minimum `1`.
+and Home remains `200`.
 
-### Case 4 — Current User Rank 1
-
-Verify:
-
-```text
-Rival = null
-```
-
-### Case 5 — Current User Values Are Preserved
-
-Verify response exposes the leaderboard's existing real:
-
-```text
-rank
-points
-period boundaries
-```
-
-Do not duplicate mocked run aggregation inside these tests if `LeaderboardService` can be represented through the smallest appropriate test seam.
+Test behavior, not internal call counts.
 
 ---
 
-# 27. NextGoalService Unit Tests
+# 23. Demo Leaderboard Tests
 
-Minimum cases:
-
-### Case 1 — Active Run Has Target
-
-Verify:
+Add/update deterministic tests for:
 
 ```text
-run_overtake
+0  → #41
+16 → #40
+30 → #39
+41 → #38
+59 → #37
 ```
 
-is returned.
+Verify the relevant progression for Month after Stage 5 alignment.
 
-### Case 2 — Active Run Goal Has Priority
-
-Even if a monthly rival exists, verify the active run target wins.
-
-### Case 3 — Remaining Distance Comes From Competition Snapshot
-
-Do not independently recalculate target threshold in `NextGoalService`.
-
-### Case 4 — No Active Run
-
-Verify monthly rival goal is returned.
-
-### Case 5 — Active Run Has No Remaining Target
-
-Verify fallback to monthly rival.
-
-### Case 6 — No Active Target and No Rival
-
-Verify:
+Also verify:
 
 ```text
-Goal = null
+59 monthly points
+→ rival #36
+→ rival points 64
+→ pointsGap 5
+→ pointsToPass 6
 ```
 
-### Case 7 — Rank Transition
-
-For run target:
-
-```text
-TargetRank = CurrentRank - 1
-```
-
-### Case 8 — Rival Goal Uses PointsToPass
-
-Verify the goal uses:
-
-```text
-Rival.PointsToPass
-```
-
-rather than recomputing a different value.
+Do not change real current-user point aggregation tests.
 
 ---
 
-# 28. API Tests
+# 24. Demo Reset Tests
 
-Add API tests for:
+Add the smallest practical automated coverage for:
 
-```http
-GET /api/rivals/current
-GET /api/goals/next
-```
+- default reset value is `false`;
+- reset=true + seed=false fails options validation;
+- reset-disabled configuration preserves normal startup behavior.
 
-Verify:
+Real deletion semantics must be verified in the Stage 5 Mongo smoke flow.
 
-- status `200`;
-- JSON contract;
-- rival is monthly;
-- current user data is present;
-- active-run goal wins during a run;
-- remaining distance decreases when run progress increases;
-- after crossing a run target, the next run target is returned;
-- after all demo run targets are crossed, goal falls back to monthly rival;
-- no-goal response is valid;
-- existing error middleware still behaves correctly.
+If existing test infrastructure supports Mongo-backed initializer testing without introducing a new framework, also test targeted deletion there.
 
-Do not require real MongoDB for normal integration tests.
-
-Continue using the project's replacement test stores/providers.
+Do not build a new Mongo test framework solely for this feature.
 
 ---
 
-# 29. Regression Tests
+# 25. CORS Tests
 
-Run the entire existing test suite.
+Add API integration tests for:
+
+```text
+allowed origin
+disallowed origin
+preflight
+```
+
+Use configuration overrides and existing replacement stores/providers.
+
+Do not require real MongoDB for CORS integration tests.
+
+---
+
+# 26. Regression Validation
+
+Run the complete existing test suite.
 
 Verify no regression in:
 
-- authentication;
-- health;
+- login;
 - Mongo configuration;
-- run creation;
-- progress updates;
+- seeding;
+- health/readiness;
+- run start;
+- active run;
+- progress;
 - finish;
-- concurrency behavior;
+- concurrency;
 - overtake uniqueness;
 - post-run summary;
-- run history;
-- progress aggregation;
+- history;
+- personal progress;
 - daily leaderboard;
 - monthly leaderboard;
-- activity map;
-- period boundaries.
+- map;
+- rival;
+- next goal;
+- error middleware;
+- OpenAPI.
 
-Do not weaken existing tests to make Stage 4 pass.
+Where old tests assert previous demo monthly competitor totals, update only those expectations to the new Stage 5 demo dataset.
+
+Do not weaken tests for real user scoring.
 
 ---
 
-# 30. Real Mongo Stage 4 Smoke Flow
+# 27. Stage 5 Real Mongo / Docker Smoke
 
 Add:
 
 ```text
-tests/Stage4.MongoSmoke.ps1
+tests/Stage5.MongoSmoke.ps1
 ```
 
-Reuse the existing Stage 2 / Stage 3 smoke-test approach.
+Reuse the Stage 2–4 smoke approach.
 
-Do not create a new testing framework.
+Prefer a dedicated temporary database when practical, for example:
+
+```text
+citysurfers_stage5_smoke
+```
+
+Do not destroy unrelated developer data.
 
 Suggested flow:
 
 ```text
-1. Start API against local MongoDB.
-2. Verify readiness.
-3. Login as demo user.
-4. GET /api/rivals/current.
-5. Capture current rival/current-user monthly state.
-6. GET /api/goals/next with no active run.
-7. Verify rival_points when a rival exists.
-8. Start a run.
-9. GET /api/goals/next.
-10. Verify run_overtake.
-11. Update run progress without crossing first threshold.
-12. GET /api/goals/next.
-13. Verify remaining distance decreased.
-14. Cross first target.
-15. GET /api/goals/next.
-16. Verify the next run target is returned.
-17. Finish the run.
-18. GET /api/goals/next.
-19. Verify active-run target is no longer returned.
-20. GET /api/rivals/current.
-21. Verify current-user points/rank reflect persisted run data.
-22. Restart API.
-23. GET /api/rivals/current again.
-24. Verify derived rival state is based on persisted run points after restart.
+1. Build Stage 5 Docker image.
+2. Start API with local MongoDB and:
+   SeedOnStartup=true
+   ResetRunsOnStartup=true
+   configured test CORS origin.
+3. Verify /health.
+4. Verify /health/ready.
+5. Login demo user.
+6. GET /api/home.
+7. Verify:
+   today rank = 41
+   today points = 0
+   activeRun = null
+   reachable rival goal exists.
+8. Verify allowed-origin CORS.
+9. Verify mutation preflight.
+10. POST /api/runs.
+11. GET /api/home.
+12. Verify:
+    activeRun exists
+    primary goal = run_overtake
+    ranks = 41 → 40.
+13. Cross first target.
+14. Verify:
+    points = 16
+    today rank = 40
+    next run target exists.
+15. Cross all four targets.
+16. Finish run.
+17. Verify:
+    points earned = 59
+    run rank = 41 → 37.
+18. GET /api/leaderboards/today.
+19. Verify rank = 37.
+20. GET /api/leaderboards/month.
+21. Verify clean showcase rank = 37.
+22. GET /api/rivals/current.
+23. Verify:
+    rival rank = 36
+    rival points = 64
+    pointsGap = 5
+    pointsToPass = 6.
+24. GET /api/home.
+25. Verify:
+    activeRun = null
+    nextGoal = rival_points
+    remainingPoints = 6.
+26. Verify history contains completed run.
+27. Verify progress reflects completed run.
+28. Restart with ResetRunsOnStartup=false.
+29. Verify run persists.
+30. Restart with ResetRunsOnStartup=true.
+31. Verify:
+    demo history is empty
+    demo user still exists
+    clean Home state is restored.
+32. Verify no new Mongo collections.
+33. Stop/remove test container.
+34. Clean temporary database if created.
 ```
 
-Do not assert a fragile hard-coded rival if accumulated local test data can change the user's monthly score.
+The script must fail on contract mismatches.
 
-Compare relationships and deltas where practical.
+Do not rely on manual inspection.
 
 ---
 
-# 31. OpenAPI
+# 28. Docker Validation
 
-Verify the generated OpenAPI contains:
+Build the existing repository Dockerfile.
 
-```text
-GET /api/rivals/current
-GET /api/goals/next
-```
+Preserve:
 
-and correct response models.
+- multi-stage build;
+- non-root runtime user;
+- port `8080`;
+- no embedded secrets.
 
-Do not add Swagger-specific dependencies if the current OpenAPI setup does not require them.
+Do not add MongoDB into the API image.
+
+Do not build hosting-provider-specific orchestration in Stage 5.
 
 ---
 
-# 32. Documentation
+# 29. Documentation
 
-Update README minimally.
-
-Add:
-
-```text
-GET /api/rivals/current
-GET /api/goals/next
-```
+Update README from Stage 4 to Stage 5.
 
 Document:
 
-- rival is derived from monthly leaderboard;
-- other competitors remain deterministic demo data;
-- current-user points remain derived from persisted runs;
-- rival is not persisted;
-- next goal prefers active-run overtake;
-- monthly rival is the fallback;
-- no new Mongo collections are introduced.
+- `GET /api/home`;
+- Home response purpose;
+- frontend call sequence;
+- aligned deterministic demo leaderboard;
+- `DemoData__ResetRunsOnStartup`;
+- default `false`;
+- warning that enabling it deletes only demo-user runs on API startup;
+- CORS configuration;
+- Stage 5 smoke command;
+- deterministic demo narrative.
 
-Include minimal curl examples.
+Recommended frontend call sequence:
+
+```text
+POST /api/auth/login
+GET  /api/home
+
+# dedicated screens / lazy loading
+GET /api/map/activity
+GET /api/leaderboards/today
+GET /api/leaderboards/month
+GET /api/progress
+GET /api/runs/history
+```
+
+During run:
+
+```text
+POST  /api/runs
+PATCH /api/runs/{runId}/progress
+POST  /api/runs/{runId}/finish
+GET   /api/home
+```
 
 Do not rewrite unrelated README sections.
 
 ---
 
-# 33. Explicit Non-Goals
+# 30. Explicit Non-Goals
 
-Do not implement during Stage 4:
+Do not implement during Stage 5:
 
-- real authentication;
+- frontend/mobile code;
+- React / React Native / Flutter integration;
+- frontend project scaffolding;
+- real production deployment;
+- hosting-provider-specific setup;
+- CI/CD;
 - JWT;
 - ASP.NET Identity;
-- real multi-user social accounts;
+- OAuth;
+- real multi-user authentication;
+- roles/permissions;
 - friends;
-- friend requests;
-- direct messaging;
-- persisted rival relationships;
-- user-selected rivals;
-- rival history;
-- rival notifications;
-- Game Rating;
-- Game Rating algorithm;
-- ELO/MMR;
-- 1v1 races;
-- matchmaking;
-- WebSockets;
+- persisted rivals;
+- notifications;
 - SignalR;
-- background workers;
-- push notifications;
-- route catalog;
+- WebSockets;
+- routes;
 - route rankings;
 - King of Route;
-- achievements;
-- levels;
+- GPS ingestion;
+- live individual coordinates;
+- external map services;
+- Strava/Garmin;
 - AI Coach;
-- GPS storage;
-- real live location;
-- public individual coordinates;
-- geospatial MongoDB queries;
-- Strava;
-- Garmin;
-- external map integration;
+- Game Rating;
+- races/matchmaking;
+- achievements/levels;
+- anti-cheat engine;
 - Redis;
-- a new database;
-- a new Mongo client;
-- complex recommendation algorithms;
-- ML-based goal selection;
-- production season reset jobs;
-- historical season persistence.
+- caching;
+- queues/background workers;
+- new database technology;
+- new Mongo collections;
+- API versioning;
+- GraphQL;
+- microservices.
 
 ---
 
-# 34. Architectural Guardrails
+# 31. Architectural Guardrails
 
 Keep responsibilities separate:
 
 ```text
 RunSession
-    = one-run lifecycle and persisted run state
+    = one-run lifecycle
 
 IRunCompetitionProvider
-    = active-run targets and overtakes
+    = active-run deterministic competition
 
 LeaderboardService
-    = calculate user's period score and standings
+    = real current-user score aggregation + standings orchestration
 
 ILeaderboardProvider
-    = replaceable city competition population
+    = replaceable demo competitor population
 
 RivalService
-    = derive current monthly rival from leaderboard
+    = derive monthly rival
 
 NextGoalService
-    = choose one primary goal from existing systems
+    = choose one primary motivational goal
+
+HomeService
+    = compose minimal frontend home state
+
+DemoDataSeeder / demo initialization
+    = initialize/reset demo persistence when explicitly configured
 ```
 
-Do not merge these into one large:
+Do not create god services such as:
 
 ```text
-CompetitionService
 GameService
-DashboardService
-HomeService
+AppService
+MegaDashboardService
 ```
 
-Do not place:
+Do not put:
 
-- Mongo-specific code in Application;
-- demo data in Domain;
-- rival-selection calculations in controllers;
-- next-goal priority logic in controllers;
-- leaderboard calculations in `RivalService`;
-- overtake threshold calculations in `NextGoalService`.
+- Mongo code in Application;
+- reset logic in controllers;
+- leaderboard math in Home;
+- goal priority logic in Home;
+- scoring logic in Home;
+- frontend sentences in Application.
 
 ---
 
-# 35. Implementation Tasks
+# 32. Implementation Tasks
 
-## Task 1 — Baseline Verification
+## Task 1 — Baseline
 
 - [x] Read `AGENT.md`.
 - [x] Read this `PLAN.md`.
-- [x] Inspect only existing leaderboard/run competition files needed for implementation.
-- [x] Run the existing automated test suite before meaningful changes.
-- [x] Confirm baseline is green.
+- [x] Do not perform repository-wide analysis.
+- [x] Run the current full automated suite.
+- [x] Confirm Stage 4 baseline is green.
 
-## Task 2 — Rival Models
+## Task 2 — Align Demo Monthly Leaderboard
 
-- [x] Add focused rival models.
-- [x] Include current-user monthly rank and points.
-- [x] Include optional rival.
-- [x] Include `PointsGap`.
-- [x] Include `PointsToPass`.
-- [x] Include monthly period boundaries.
-- [x] Do not add persistence models.
+- [x] Update only demo competitor population.
+- [x] Preserve real current-user point aggregation.
+- [x] Make Month use the aligned MVP point ladder.
+- [x] Preserve sorting semantics.
+- [x] Verify `0 → #41`.
+- [x] Verify `16 → #40`.
+- [x] Verify `30 → #39`.
+- [x] Verify `41 → #38`.
+- [x] Verify `59 → #37`.
 
-## Task 3 — RivalService
+## Task 3 — Verify Rival Showcase State
 
-- [x] Add `RivalService`.
-- [x] Reuse `LeaderboardService`.
-- [x] Use monthly leaderboard.
-- [x] Select rank directly above current user.
-- [x] Support rank-1 zero state.
-- [x] Add focused unit tests.
+- [x] Verify 59 monthly points → #37.
+- [x] Verify rival → #36.
+- [x] Verify rival points → 64.
+- [x] Verify gap → 5.
+- [x] Verify points-to-pass → 6.
+- [x] Preserve Stage 4 rival algorithm.
 
-## Task 4 — Rival API
+## Task 4 — Home Models
 
-- [x] Add `GET /api/rivals/current`.
+- [x] Add focused Home models.
+- [x] Reuse existing current-user rank model where appropriate.
+- [x] Reuse existing `NextGoal`.
+- [x] Add nullable compact active-run summary.
+
+## Task 5 — HomeService
+
+- [x] Add `HomeService`.
+- [x] Reuse current-user accessor.
+- [x] Reuse run store.
+- [x] Reuse leaderboard service.
+- [x] Reuse next-goal service.
+- [x] Treat no active run as normal.
+- [x] Add focused tests.
+
+## Task 6 — Home API
+
+- [x] Add `GET /api/home`.
 - [x] Keep controller thin.
-- [x] Return `200` with nullable rival.
+- [x] Return `200` when idle.
 - [x] Add API integration tests.
+- [x] Verify JSON contract.
 
-## Task 5 — Next Goal Models
+## Task 7 — Demo Reset
 
-- [x] Add goal models.
-- [x] Support `run_overtake`.
-- [x] Support `rival_points`.
-- [x] Support nullable goal.
-- [x] Keep UI/localized text out of Application.
+- [x] Add `ResetRunsOnStartup`.
+- [x] Default to false.
+- [x] Add options validation.
+- [x] Reject reset=true + seed=false.
+- [x] Delete only demo-user runs.
+- [x] Preserve users/indexes/unrelated data.
+- [x] Add `.env.example` entry.
 
-## Task 6 — NextGoalService
+## Task 8 — CORS Tests
 
-- [x] Resolve current user.
-- [x] Read active run through existing store.
-- [x] Reuse `IRunCompetitionProvider`.
-- [x] Give active run target highest priority.
-- [x] Fall back to `RivalService`.
-- [x] Return null when neither source has a goal.
-- [x] Add focused unit tests.
+- [x] Test allowed origin.
+- [x] Test disallowed origin.
+- [x] Test preflight.
+- [x] Preserve no-credentials policy.
+- [x] Do not add wildcard Production CORS.
 
-## Task 7 — Next Goal API
+## Task 9 — API Manual Contract File
 
-- [x] Add `GET /api/goals/next`.
-- [x] Keep controller thin.
-- [x] Add API tests.
-- [x] Verify active-run priority.
-- [x] Verify rival fallback.
-- [x] Verify zero-state.
+- [x] Expand `CitySurfers.Api.http`.
+- [x] Cover full MVP flow.
+- [x] Add Home request.
 
-## Task 8 — Dependency Injection
-
-- [x] Register `RivalService`.
-- [x] Register `NextGoalService`.
-- [x] Preserve current lifetimes and conventions.
-- [x] Do not introduce service-location patterns.
-
-## Task 9 — Regression Validation
+## Task 10 — OpenAPI + Regression
 
 - [x] Build solution.
-- [x] Run full automated test suite.
-- [x] Verify Stage 1.
-- [x] Verify Stage 2.
-- [x] Verify Stage 3.
-- [x] Verify Stage 4.
-- [x] Verify OpenAPI.
-- [x] Verify Docker build.
+- [x] Run full test suite.
+- [x] Verify Stages 1–4 remain green.
+- [x] Verify Stage 5.
+- [x] Verify OpenAPI contains Home.
+- [x] Verify existing paths remain intact.
 
-## Task 10 — Real Mongo Demo Flow
+## Task 11 — Real Mongo / Docker Smoke
 
-- [x] Add/execute `Stage4.MongoSmoke.ps1`.
-- [x] Verify idle rival goal.
-- [x] Verify active-run goal.
-- [x] Verify remaining distance changes.
-- [x] Verify target changes after overtake.
-- [x] Verify post-run fallback.
-- [x] Verify persisted points affect rival state.
-- [x] Verify API restart behavior.
+- [x] Build Stage 5 image.
+- [x] Add `Stage5.MongoSmoke.ps1`.
+- [x] Verify clean reset state.
+- [x] Verify Home idle state.
+- [x] Verify CORS/preflight.
+- [x] Verify run Home state.
+- [x] Verify `41→40→39→38→37` progression.
+- [x] Verify 59-point finish.
+- [x] Verify 6-point rival goal.
+- [x] Verify persistence with reset=false.
+- [x] Verify reset with reset=true.
+- [x] Verify no new collections.
 
-## Task 11 — Documentation
+## Task 12 — Documentation
 
-- [x] Update README with Stage 4.
-- [x] Document new endpoints.
-- [x] Add minimal curl examples.
-- [x] Document temporary rival selection rule.
-- [x] Document real-vs-demo boundary.
-- [x] Do not rewrite unrelated documentation.
-
----
-
-# 36. Acceptance Criteria
-
-Stage 4 is complete only when:
-
-- [x] Stage 1 still works.
-- [x] Stage 2 still works.
-- [x] Stage 3 still works.
-- [x] Existing tests remain green.
-- [x] `GET /api/rivals/current` exists.
-- [x] Rival uses the current monthly leaderboard.
-- [x] Rival is the competitor immediately above the current user.
-- [x] Rank #1 produces `rival: null`.
-- [x] Rival response contains current-user rank and points.
-- [x] Rival response contains rival rank and points.
-- [x] `PointsGap` is correct.
-- [x] `PointsToPass` is correct.
-- [x] `GET /api/goals/next` exists.
-- [x] Active run overtake target has first priority.
-- [x] Active run target uses the existing competition provider.
-- [x] Remaining run distance comes from existing competition state.
-- [x] Monthly rival is used when no active target exists.
-- [x] Goal can validly be null.
-- [x] No duplicate leaderboard scoring logic was introduced.
-- [x] No duplicate overtake threshold logic was introduced.
-- [x] No new MongoDB collection was introduced.
-- [x] No persisted fake competitors were introduced.
-- [x] No persisted rival relationship was introduced.
-- [x] Controllers remain thin.
-- [x] Full automated test suite passes.
-- [x] Docker build succeeds.
-- [x] OpenAPI contains Stage 4 endpoints.
-- [x] Real Mongo Stage 4 flow succeeds.
-- [x] Derived rival state survives API restart because user run data persists.
-- [x] README reflects the implemented behavior.
+- [x] Update README to Stage 5.
+- [x] Document Home.
+- [x] Document frontend call sequence.
+- [x] Document demo leaderboard alignment.
+- [x] Document reset option/warning.
+- [x] Document CORS.
+- [x] Document smoke flow.
 
 ---
 
-## Stage 4 validation evidence — 2026-10-03
+# 33. Acceptance Criteria
 
-- Baseline: 76 unit + 50 API tests passed before changes.
-- Final solution build: zero warnings/errors; 88 unit + 57 API tests passed (145 total).
-- Focused tests verify rival selection/gap/minimums/rank-one, snapshot priority, fallbacks,
-  null contracts, target transitions, sanitized failures and OpenAPI response schemas.
-- Docker image `citysurfers-api:stage4` built successfully. Registry tag resolution returned EOF;
-  validation used an ignored `.local/Stage4.validation.Dockerfile` with only the two base-image
-  references pinned to cached digests from the previous successful Stage 3 build. Repository
-  `Dockerfile` is unchanged. Image digest: `sha256:87332ab48a20fbcfa342740d4cb4c3692785cffd63fdfdb836170ad0e5e711c2`.
-- Stage 4 real local Mongo smoke passed, including readiness/login, idle and active goals,
-  decreasing distance, next target, exhausted-target/post-run fallback, Mongo score delta,
-  no new collections and derived rival state after API restart.
-- Existing Stage 2 and Stage 3 real Mongo smoke scripts passed against the Stage 4 image,
-  including persisted state, concurrency/reward uniqueness and read-side restart behavior.
-- README updated; no new persistence or changes to Stage 1–3 business logic/contracts.
+Stage 5 is complete only when:
 
----
-
-# 37. Expected Demo Narrative After Stage 4
-
-The backend should support the following demo.
-
-Before running:
-
-```text
-GET /api/goals/next
-
-Your next goal:
-14 points to pass Marta_17.
-```
-
-User starts running:
-
-```text
-POST /api/runs
-```
-
-Then:
-
-```text
-GET /api/goals/next
-
-Runner_92
-1200 m to overtake
-+16 potential points
-#41 → #40
-```
-
-After progress:
-
-```text
-Runner_92
-350 m to overtake
-```
-
-After the overtake:
-
-```text
-Marta
-next run target
-```
-
-After finishing:
-
-```text
-GET /api/goals/next
-
-Monthly rival:
-Marta_17
-Only a small number of points remain.
-```
-
-This closes the MVP motivation loop:
-
-```text
-see target
-→ run
-→ overtake
-→ earn points
-→ affect leaderboard
-→ get next target
-→ want to run again
-```
+- [x] Stage 1 behavior still works.
+- [x] Stage 2 behavior still works.
+- [x] Stage 3 behavior still works.
+- [x] Stage 4 behavior still works.
+- [x] Full automated suite passes.
+- [x] Existing endpoint paths are preserved.
+- [x] `GET /api/home` exists.
+- [x] Home returns `200` while idle.
+- [x] Home returns today's real current-user rank/points.
+- [x] Home returns nullable active run.
+- [x] Home returns the existing primary next goal.
+- [x] Home does not duplicate leaderboard logic.
+- [x] Home does not duplicate next-goal logic.
+- [x] Home remains a small bootstrap endpoint.
+- [x] Demo Month uses the aligned point ladder.
+- [x] `0 → #41`.
+- [x] `16 → #40`.
+- [x] `30 → #39`.
+- [x] `41 → #38`.
+- [x] `59 → #37`.
+- [x] At 59 monthly points rival is #36 at 64 points.
+- [x] `pointsGap = 5`.
+- [x] `pointsToPass = 6`.
+- [x] Real user scoring is unchanged.
+- [x] Overtake rewards are unchanged.
+- [x] Target distances are unchanged.
+- [x] `DemoData__ResetRunsOnStartup` exists.
+- [x] Reset defaults false.
+- [x] Invalid reset/seed combination is rejected.
+- [x] Reset deletes only demo-user runs.
+- [x] Reset preserves demo user and unrelated data.
+- [x] No public reset endpoint exists.
+- [x] Allowed-origin CORS is tested.
+- [x] Disallowed-origin CORS is tested.
+- [x] Preflight is tested.
+- [x] No Production wildcard origin is added.
+- [x] `CitySurfers.Api.http` covers the demo flow.
+- [x] OpenAPI includes Home.
+- [x] Docker image builds.
+- [x] Real Mongo Stage 5 smoke passes.
+- [x] Smoke proves deterministic fresh state.
+- [x] Smoke proves full one-run loop.
+- [x] Smoke proves persistence when reset is off.
+- [x] Smoke proves intentional reset when enabled.
+- [x] No new Mongo collections are introduced.
+- [x] README documents frontend-ready behavior.
 
 ---
 
-# 38. Stage 5 — Do Not Implement Yet
+# 34. Definition of Stage 5 Success
 
-Do not start Stage 5 during this plan.
+After Stage 5, backend feature development for the hackathon MVP should stop.
 
-After Stage 4, the next stage should be selected separately.
-
-Likely candidates:
+The frontend should be able to implement the core demo with:
 
 ```text
-A. Deployment hardening + hackathon production environment
-B. Route catalog + route competition demo
-C. Profile + richer progression
-D. AI Coach demo layer
+login
+→ home
+→ start run
+→ progress
+→ overtake feedback
+→ finish
+→ home / next rival
+→ ranking / map / progress screens
 ```
 
-For hackathon readiness, deployment hardening will likely become the highest-priority next step after the core motivational loop is complete.
+The backend should support a repeatable presentation:
+
+```text
+fresh #41
+→ overtake targets
+→ #37
+→ ~6 points to next rival
+```
+
+without changing real user scoring logic.
+
+---
+
+# 35. Stage 6 — Do Not Implement Yet
+
+Do not start Stage 6 during this plan.
+
+After Stage 5, the next work should focus on:
+
+```text
+Frontend integration
++
+actual hosting/deployment
++
+end-to-end deployed smoke
++
+hackathon demo polish
+```
+
+Do not add more backend product modules before frontend integration unless a concrete frontend blocker is discovered.
+
+# Stage 5 Completion Evidence
+
+- Solution build passed with zero warnings and errors.
+- Full automated regression suite passed: 96 unit tests and 65 integration tests (161 total).
+- Home tests cover idle, active metrics/goal, finished monthly fallback, null goal and compact JSON.
+- Demo leaderboard tests verify both periods at 0/16/30/41/59 points; the rival integration test
+  verifies rank #37, rival #36 at 64 points, gap 5 and points-to-pass 6 after a persisted demo run.
+- CORS integration tests passed for allowed/disallowed origins and mutation preflight without credentials.
+- OpenAPI validation passed for Home's 200 schema, its models, and all existing Stage 1–4 paths.
+- Docker image citysurfers-api:stage5 built successfully; runtime user 1654 and port 8080 verified.
+  Registry tag lookup returned EOF. As in Stage 4, an ignored .local/Stage5.validation.Dockerfile
+  substituted only the cached .NET 10 SDK/runtime digests; the repository Dockerfile remains unchanged.
+- Stage5.MongoSmoke.ps1 passed against real local MongoDB: clean Home, all four daily/monthly rank
+  transitions, 59-point finish, 6-point rival, history/progress, CORS and OpenAPI, persistence with
+  reset=false and deletion with reset=true. A pre-existing demo id was resolved; unrelated users,
+  active/completed runs, user documents and indexes survived. Collections remained runs/users.
+  The smoke-created database and API container were removed; developer data was not modified.
+- README and the manual HTTP contract file document the complete frontend/demo flow.
+- No Stage 6 work was implemented.
+
+Deviation: Docker validation pinned cached base-image digests in an ignored validation copy after
+registry tag lookup failed with EOF. No application or architectural deviations.

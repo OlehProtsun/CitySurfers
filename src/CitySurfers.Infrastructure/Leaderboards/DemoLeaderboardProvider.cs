@@ -18,7 +18,7 @@ public sealed class DemoLeaderboardProvider : ILeaderboardProvider
         {
             var dailyPoints = index switch { 0 => 8, 1 => 24, 2 => 36, 3 => 50, _ => 64 + (index - 4) * 12 };
             return new Competitor($"competitor-{index:D2}", $"{Names[index % Names.Length]}_{index + 1}",
-                period == LeaderboardPeriod.Today ? dailyPoints : dailyPoints * 25L + index * 7L, false);
+                dailyPoints, false);
         }).Append(new Competitor("current-user", "You", currentUserPoints, true));
         var ranked = competitors.OrderByDescending(row => row.Points).ThenBy(row => row.Key, StringComparer.Ordinal)
             .Select((row, index) => new LeaderboardRow(index + 1, row.DisplayName, row.Points, row.IsCurrentUser))
