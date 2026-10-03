@@ -10,7 +10,7 @@ follow login → Home → start/progress/finish → Home, and lazy-load dedicate
 Demo login validates fictional credentials but issues no token/session; the server resolves a shared demo user.
 Backend Core MVP feature work and successful contracts are frozen for the hackathon.
 Keep routes, JSON field names, success statuses and meanings stable; compatible optional additions and defect fixes remain possible.
-The next step is frontend integration. No frontend framework or hosting provider is selected.
+Stage 7 adds the React mobile-first frontend. Hosting remains outside this stage.
 
 One-command local fallback (API Production + private Mongo, seed/reset enabled):
 
@@ -242,7 +242,7 @@ Before production, replace `DemoAuthService` and demo credential storage with re
 
 ## Validation status
 
-See `PLAN.md` for Stage 6 completion and acceptance criteria.
+See `PLAN.md` for the Stage 7 checklist and acceptance criteria.
 Stage 6 local validation passed: Release build with zero warnings/errors, 162 automated tests,
 frontend JSON-contract flow, actual Dockerfile build, Production release smoke, Stage 5 Mongo regression,
 Compose full demo/reset, remote smoke safe/full modes and failure-path cleanup.
@@ -309,3 +309,19 @@ It does not verify Atlas connectivity or deployed frontend behavior.
 
 References: [MongoDB C# driver](https://www.mongodb.com/docs/drivers/csharp/current/),
 [ASP.NET Core](https://learn.microsoft.com/aspnet/core/).
+
+## Stage 7 frontend
+
+The React + TypeScript + Vite app lives in [frontend/](frontend/README.md).
+Start the Compose API at `http://localhost:8080`, then:
+
+```sh
+cd frontend
+npm ci
+cp .env.example .env
+npm run dev
+```
+
+Open `http://localhost:5173`. Demo login is `demo / 1234`.
+Run `pwsh -NoProfile -File tests/Stage7.FrontendSmoke.ps1` for the isolated real-backend/production-frontend browser smoke.
+See the frontend README for environment settings, simulator semantics, map attribution, checks and MVP limitations.

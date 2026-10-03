@@ -11,3 +11,8 @@ TestResults/
 .env.*
 !.env.example
 [Dd]ocs/*Credential*
+
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/

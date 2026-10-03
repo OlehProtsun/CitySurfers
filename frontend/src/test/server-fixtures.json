@@ -1,0 +1,223 @@
+{
+  "progress": {
+    "lifetime": {
+      "completedRuns": 0,
+      "totalDistanceMeters": 0,
+      "totalDurationSeconds": 0,
+      "averagePaceSecondsPerKm": null,
+      "totalOvertakes": 0,
+      "totalPointsEarned": 0,
+      "longestRunDistanceMeters": 0,
+      "fastestRunAveragePaceSecondsPerKm": null
+    },
+    "currentWeek": {
+      "completedRuns": 0,
+      "distanceMeters": 0,
+      "durationSeconds": 0,
+      "averagePaceSecondsPerKm": null,
+      "pointsEarned": 0
+    },
+    "currentMonth": {
+      "completedRuns": 0,
+      "distanceMeters": 0,
+      "durationSeconds": 0,
+      "averagePaceSecondsPerKm": null,
+      "pointsEarned": 0
+    },
+    "previousMonth": {
+      "completedRuns": 0,
+      "distanceMeters": 0,
+      "durationSeconds": 0,
+      "averagePaceSecondsPerKm": null,
+      "pointsEarned": 0
+    },
+    "comparison": {
+      "monthlyDistanceDeltaMeters": 0,
+      "monthlyAveragePaceDeltaSecondsPerKm": null
+    }
+  },
+  "home": {
+    "today": {
+      "rank": 41,
+      "points": 0
+    },
+    "activeRun": null,
+    "nextGoal": {
+      "type": "rival_points",
+      "source": "monthly_leaderboard",
+      "targetDisplayName": "Marta_1",
+      "runId": null,
+      "remainingDistanceMeters": null,
+      "remainingPoints": 9,
+      "potentialPoints": null,
+      "currentRank": 41,
+      "targetRank": 40
+    }
+  },
+  "leaderboards/today": {
+    "period": "today",
+    "periodStartUtc": "2026-10-03T00:00:00+02:00",
+    "periodEndUtc": "2026-10-04T00:00:00+02:00",
+    "currentUser": {
+      "rank": 41,
+      "points": 0
+    },
+    "top": [
+      {
+        "rank": 1,
+        "displayName": "Adam_40",
+        "points": 484,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 2,
+        "displayName": "Zofia_39",
+        "points": 472,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 3,
+        "displayName": "Jakub_38",
+        "points": 460,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 4,
+        "displayName": "Kasia_37",
+        "points": 448,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 5,
+        "displayName": "Tomasz_36",
+        "points": 436,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 6,
+        "displayName": "Anna_35",
+        "points": 424,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 7,
+        "displayName": "Piotr_34",
+        "points": 412,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 8,
+        "displayName": "Marta_33",
+        "points": 400,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 9,
+        "displayName": "Adam_32",
+        "points": 388,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 10,
+        "displayName": "Zofia_31",
+        "points": 376,
+        "isCurrentUser": false
+      }
+    ],
+    "aroundMe": [
+      {
+        "rank": 39,
+        "displayName": "Piotr_2",
+        "points": 24,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 40,
+        "displayName": "Marta_1",
+        "points": 8,
+        "isCurrentUser": false
+      },
+      {
+        "rank": 41,
+        "displayName": "You",
+        "points": 0,
+        "isCurrentUser": true
+      }
+    ]
+  },
+  "runs/history": {
+    "items": []
+  },
+  "rivals/current": {
+    "period": "month",
+    "periodStartUtc": "2026-10-01T00:00:00+02:00",
+    "periodEndUtc": "2026-11-01T00:00:00+01:00",
+    "currentUser": {
+      "rank": 41,
+      "points": 0
+    },
+    "rival": {
+      "displayName": "Marta_1",
+      "rank": 40,
+      "points": 8,
+      "pointsGap": 8,
+      "pointsToPass": 9
+    }
+  },
+  "map/activity?period=live": {
+    "period": "live",
+    "generatedAtUtc": "2026-10-03T23:05:46.4945199+02:00",
+    "zones": [
+      {
+        "id": "blonia",
+        "name": "Błonia",
+        "latitude": 50.0605,
+        "longitude": 19.9076,
+        "activeRunners": 6,
+        "runs": 12,
+        "averagePaceSecondsPerKm": 310,
+        "activityLevel": "high"
+      },
+      {
+        "id": "bulwary-wislane",
+        "name": "Bulwary Wiślane",
+        "latitude": 50.049,
+        "longitude": 19.935,
+        "activeRunners": 9,
+        "runs": 17,
+        "averagePaceSecondsPerKm": 322,
+        "activityLevel": "high"
+      },
+      {
+        "id": "zakrzowek",
+        "name": "Zakrzówek",
+        "latitude": 50.0315,
+        "longitude": 19.913,
+        "activeRunners": 12,
+        "runs": 22,
+        "averagePaceSecondsPerKm": 334,
+        "activityLevel": "medium"
+      },
+      {
+        "id": "park-jordana",
+        "name": "Park Jordana",
+        "latitude": 50.063,
+        "longitude": 19.913,
+        "activeRunners": 15,
+        "runs": 27,
+        "averagePaceSecondsPerKm": 346,
+        "activityLevel": "medium"
+      },
+      {
+        "id": "las-wolski",
+        "name": "Las Wolski",
+        "latitude": 50.054,
+        "longitude": 19.846,
+        "activeRunners": 18,
+        "runs": 32,
+        "averagePaceSecondsPerKm": 358,
+        "activityLevel": "low"
+      }
+    ]
+  }
+}
