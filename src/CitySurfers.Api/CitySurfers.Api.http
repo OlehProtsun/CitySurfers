@@ -1,0 +1,15 @@
+@CitySurfers.Api_HostAddress = http://localhost:5092
+
+GET {{CitySurfers.Api_HostAddress}}/health
+
+###
+GET {{CitySurfers.Api_HostAddress}}/health/ready
+
+###
+POST {{CitySurfers.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "demo",
+  "password": "1234"
+}

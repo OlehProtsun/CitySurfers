@@ -1,0 +1,15 @@
+**/bin
+**/obj
+.git
+.local
+.vs
+.vscode
+.idea
+TestResults
+.env
+.env.*
+Docs
+tests
+Design
+FrontEnd
+BackEnd
