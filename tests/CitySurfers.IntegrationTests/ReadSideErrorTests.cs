@@ -9,6 +9,8 @@ public sealed class ReadSideErrorTests
     [InlineData("/api/progress")]
     [InlineData("/api/leaderboards/today")]
     [InlineData("/api/leaderboards/month")]
+    [InlineData("/api/rivals/current")]
+    [InlineData("/api/goals/next")]
     public async Task PersistenceFailureIsSanitizedProblem(string path)
     {
         await using var app = new ApiFactory { HistoryThrows = true };

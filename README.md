@@ -1,4 +1,4 @@
-# CitySurfers — Stage 3 backend
+# CitySurfers — Stage 4 backend
 
 .NET 10 modular monolith: API → Application/Infrastructure; Application → Domain.
 MongoDB-specific code stays in Infrastructure. Domain owns run state and lifecycle rules.
@@ -60,6 +60,8 @@ Missing/invalid Mongo configuration or failed initialization stops startup with 
 | `GET /api/progress` | Real lifetime, current-week/month, previous-month aggregates and monthly comparison |
 | `GET /api/leaderboards/today` | Real current-user daily points, demo top 10 and nearby ranks |
 | `GET /api/leaderboards/month` | Real current-user monthly points, demo top 10 and nearby ranks |
+| `GET /api/rivals/current` | Monthly current-user rank/points and optional rival directly above |
+| `GET /api/goals/next` | Active-run overtake goal, monthly rival fallback, or null |
 | `GET /api/map/activity?period=today` | Aggregate demo Kraków zones; live/today/month, default today |
 
 Login request: `{"username":"demo","password":"1234"}`.
@@ -117,6 +119,26 @@ Map coordinates never represent individual runners; there is no GPS ingestion or
 Only the existing `users` and `runs` collections are used. History/progress and current-user scores survive API restarts.
 Empty activity returns `200` with empty history or zero statistics/scores. Invalid history limits and map periods return `400` Problem Details.
 
+### Stage 4 motivation
+
+```sh
+curl http://localhost:5092/api/rivals/current
+curl http://localhost:5092/api/goals/next
+```
+
+`RivalService` reuses the current monthly leaderboard. The temporary MVP rival is the competitor
+immediately above the current user; rank one returns `rival: null`. The response includes monthly
+UTC boundaries, current-user rank/points and optional rival rank/points. `pointsGap` is
+max(0, rival points - user points); `pointsToPass` is max(1, rival points - user points + 1).
+Current-user points derive from persisted runs, including active-run points under existing rules;
+other competitors remain deterministic demo data. Rivals are derived, never persisted.
+
+`NextGoalService` first returns `run_overtake` from the existing active-run competition snapshot,
+including remaining distance, potential points and rank transition. Without an active target,
+it returns `rival_points` from the monthly rival's `pointsToPass`. Without either source,
+it returns `200` with `goal: null`. Models contain semantic data, not localized UI sentences.
+No new MongoDB collections, rival relationships or fake competitor documents are introduced.
+
 ## Docker deployment
 
 ```sh
@@ -139,7 +161,7 @@ Before production, replace `DemoAuthService` and demo credential storage with re
 
 ## Validation status
 
-See `PLAN.md` for Stage 3 completion and acceptance criteria.
+See `PLAN.md` for Stage 4 completion and acceptance criteria.
 Local MongoDB smoke checks verify persistence, restart idempotence, unique username enforcement, seeding configuration, and database outage behavior.
 These checks do not establish connectivity to your Atlas cluster.
 
@@ -164,6 +186,22 @@ pwsh -NoProfile -File tests/Stage3.MongoSmoke.ps1
 
 The Stage 3 check uses the configured local `citysurfers-mongo` container, requires no active demo run,
 leaves one completed demo run, and removes its temporary API container. It does not verify Atlas connectivity.
+
+Stage 4 validation: solution build with zero warnings/errors, all 145 automated tests, OpenAPI response
+schemas, and Stage 2–4 real Mongo smoke flows passed. The Docker image built using cached base-image
+digests after registry tag lookup returned EOF; see `PLAN.md` for the validation detail.
+
+To repeat the Stage 4 real Mongo flow:
+
+```powershell
+docker build -t citysurfers-api:stage4 .
+pwsh -NoProfile -File tests/Stage4.MongoSmoke.ps1
+```
+
+The check reuses the local `citysurfers-mongo` container, requires no active demo run,
+leaves one completed run and removes its temporary API container. It verifies idle and active goals,
+distance/target changes, monthly fallback, Mongo score deltas, unchanged collections and restart persistence.
+Accumulated monthly points may yield rank one; in that case null rival/goal is expected.
 
 References: [MongoDB C# driver](https://www.mongodb.com/docs/drivers/csharp/current/),
 [ASP.NET Core](https://learn.microsoft.com/aspnet/core/).

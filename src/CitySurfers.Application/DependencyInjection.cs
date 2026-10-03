@@ -15,6 +15,8 @@ public static class DependencyInjection
         services.AddScoped<RunHistoryService>();
         services.AddScoped<Progress.ProgressService>();
         services.AddScoped<Leaderboards.LeaderboardService>();
+        services.AddScoped<Rivals.RivalService>();
+        services.AddScoped<Goals.NextGoalService>();
         return services;
     }
 }
