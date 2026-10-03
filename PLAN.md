@@ -1,1090 +1,1162 @@
-# PLAN.md — Stage 2: Running Session + Demo Competition Vertical Slice
+# PLAN.md — Stage 3: MVP Read Side — Leaderboards, Run History, Personal Progress, Kraków Activity Map
 
 ## 0. Execution Directive
 
-This file is the source of truth for Stage 2.
+This file is the source of truth for Stage 3.
 
 The implementing AI agent must:
 
-1. Read `AGENT.md` first and follow its engineering rules.
+1. Read `AGENT.md` first and follow all engineering rules from it.
 2. Read this `PLAN.md`.
 3. Do **not** perform a repository-wide analysis.
-4. Do **not** create a new roadmap or alternative architecture.
-5. Do **not** re-plan Stage 1.
+4. Do **not** create a new roadmap, architecture proposal, or alternative Stage 3.
+5. Do **not** re-plan or re-implement Stage 1 or Stage 2.
 6. Inspect only files directly required for the current task.
 7. Start implementing the first unfinished task immediately.
 8. Complete tasks in the order defined below unless a direct dependency requires a small reordering.
-9. Keep the existing architecture and naming conventions where practical.
-10. Validate every meaningful step with build/tests.
-11. Do not introduce new infrastructure unless this plan explicitly requires it.
-12. If the real code differs slightly from this plan, make the smallest safe adjustment and continue. Do not use this as a reason to analyze the entire repository.
+9. Preserve the existing N-Layer architecture and current conventions.
+10. Reuse existing MongoDB, current-user, running, error-handling, test, and DI infrastructure.
+11. Validate meaningful changes with build/tests before moving on.
+12. Do not introduce new infrastructure unless explicitly required by this plan.
+13. If the real code differs slightly from the plan, make the smallest safe correction and continue. Do not use minor differences as a reason to scan the entire repository.
 
 ---
 
 # 1. Stage Status
 
-Stage 1 is complete.
+Stage 1 and Stage 2 are complete.
 
-Already implemented and working:
+Existing working backend capabilities include:
 
-- ASP.NET Core backend;
+- ASP.NET Core API;
 - N-Layer architecture;
-- `CitySurfers.Api`;
-- `CitySurfers.Application`;
-- `CitySurfers.Domain`;
-- `CitySurfers.Infrastructure`;
-- Dependency Injection;
-- centralized exception handling / Problem Details;
-- OpenAPI;
-- CORS;
-- health checks;
-- MongoDB;
-- MongoDB Atlas connectivity;
-- user persistence;
-- demo user seeding;
+- MongoDB / MongoDB Atlas;
+- persistent demo user;
 - demo authentication;
-- `POST /api/auth/login`;
-- Docker support;
-- unit/integration test projects.
+- `ICurrentUserAccessor`;
+- persistent `RunSession`;
+- `POST /api/runs`;
+- `GET /api/runs/active`;
+- `GET /api/runs/{runId}`;
+- `PATCH /api/runs/{runId}/progress`;
+- `POST /api/runs/{runId}/finish`;
+- real distance / duration / pace handling;
+- deterministic demo overtakes;
+- run-local demo rank movement;
+- run-local demo season points;
+- optimistic concurrency for run updates;
+- persistent completed runs and overtakes;
+- post-run summary;
+- health/readiness endpoints;
+- Docker;
+- automated tests;
+- real Mongo smoke validation.
 
-Do not rebuild or redesign Stage 1.
-
----
-
-# 2. Goal of Stage 2
-
-Implement the first complete product vertical slice:
-
-```text
-Demo User
-    ↓
-Start Run
-    ↓
-Persist Active Run in MongoDB
-    ↓
-Update Run Progress
-    ↓
-Calculate Run Metrics
-    ↓
-Evaluate Demo Competition Targets
-    ↓
-Generate Overtake Events
-    ↓
-Update Demo Rank / Points
-    ↓
-Finish Run
-    ↓
-Persist Completed Run
-    ↓
-Return Post-Run Summary
-```
-
-At the end of Stage 2 the frontend must be able to:
-
-1. login with the existing demo account;
-2. start a run;
-3. periodically send distance and duration;
-4. display current pace;
-5. display the runner currently ahead;
-6. display distance remaining to overtake that runner;
-7. receive an `OVERTAKE` event when the threshold is crossed;
-8. update rank and points;
-9. receive the next target;
-10. finish the run;
-11. display a persistent post-run summary.
+Do not redesign these components.
 
 ---
 
-# 3. Real vs Demo Components
+# 2. Why Stage 3 Exists
 
-## Real now
+The backend can now execute the core running session, but the frontend still lacks the read-side data required for the main application screens.
 
-Implement as real application behavior:
+According to `AppContext.md`, the remaining Core MVP areas include:
 
-- run lifecycle;
-- run validation;
-- distance tracking;
-- duration tracking;
-- average pace;
-- MongoDB run persistence;
-- active/completed state transition;
-- persistent overtakes;
-- persistent points earned during the run;
-- API contracts;
-- tests.
+- daily ranking;
+- basic monthly leaderboard;
+- personal progress;
+- recent activity/history;
+- Kraków activity map with privacy-safe aggregated data.
 
-## Demo now
+Stage 3 implements those read-side capabilities.
 
-Keep deliberately simple and replaceable:
-
-- starting rank;
-- opponent selection;
-- target distances;
-- points per overtake;
-- rank movement.
-
-Temporary competition logic must be hidden behind one replaceable abstraction:
-
-```text
-IRunCompetitionProvider
-        ↑
-DemoRunCompetitionProvider
-```
-
-Do not hardcode opponents inside controllers, Mongo repositories, or DTO mapping.
+The objective is to make the deployed backend useful for the main demo screens without implementing expensive production ranking, geolocation, or social systems.
 
 ---
 
-# 4. Explicit Non-Goals
+# 3. Stage Goal
 
-Do **not** implement in Stage 2:
+Implement this read-side flow:
 
-- JWT;
-- refresh tokens;
-- ASP.NET Identity;
-- OAuth;
-- roles/permissions;
-- Redis;
-- SignalR;
-- WebSockets;
-- queues;
-- background workers;
-- microservices;
-- MediatR/CQRS frameworks;
-- event bus;
-- real matchmaking;
-- real leaderboard algorithm;
-- real ranking algorithm;
-- complex scoring formulas;
-- anti-cheat;
-- GPS route persistence;
-- map matching;
-- calories;
-- heart rate;
-- elevation;
-- Strava/Garmin integration;
-- push notifications;
-- AI coach;
-- achievements.
+```text
+MongoDB completed/active runs
+            ↓
+       User run history
+            ↓
+   Real user aggregates
+     ↙        ↓        ↘
+Today score  Month score  Personal progress
+     ↓           ↓
+Demo leaderboard opponents
+     ↓           ↓
+Today leaderboard / Monthly leaderboard
 
-If something above is needed only to make the presentation convincing, prefer a deterministic demo implementation.
+Demo privacy-safe Kraków activity provider
+            ↓
+Aggregated activity map endpoint
+```
+
+At the end of Stage 3, the frontend must be able to display:
+
+1. recent completed runs;
+2. current user's real daily points derived from run data;
+3. current user's real monthly points derived from run data;
+4. demo daily leaderboard;
+5. demo monthly leaderboard;
+6. current user's position inside those demo leaderboards;
+7. personal running statistics calculated from persistent runs;
+8. current-week/current-month progress;
+9. simple month-to-month progress comparison;
+10. aggregated Kraków running activity zones;
+11. no individual runner GPS coordinates.
 
 ---
 
-# 5. Demo Current User
+# 4. Important Stage 2 Interpretation
 
-Do not redesign authentication.
+`RunSession.SeasonPointsEarned` is currently points earned **inside one run**.
 
-Do not add JWT.
-
-Do not accept arbitrary `userId` from run request bodies.
-
-Add:
+For Stage 3:
 
 ```text
-ICurrentUserAccessor
-        ↑
-DemoCurrentUserAccessor
+DailyPoints =
+    sum of points from the current user's runs belonging to today
+    + current active run points when applicable
+
+MonthlySeasonPoints =
+    sum of points from the current user's runs belonging to the current month
+    + current active run points when applicable
 ```
 
-`DemoCurrentUserAccessor` should resolve the existing seeded demo user server-side.
+Do not mutate old completed runs to store global totals.
 
-Recommended behavior:
+Do not add season totals directly to the user document.
 
-- use configured/default username `demo`;
-- load that user through the existing `IUserStore`;
-- return its id.
-
-The running module depends only on `ICurrentUserAccessor`.
-
-Later this can be replaced by a real authenticated-user implementation without changing run use cases.
+For this MVP stage, leaderboard totals are read-side aggregates computed from existing run data.
 
 ---
 
-# 6. Domain Model
+# 5. Temporary Period Rule
 
-Create the minimum model required for Stage 2.
+The application is Kraków-first.
 
-Recommended entity:
+Daily and monthly periods should use Kraków local time.
 
-```text
-RunSession
-```
-
-Required state:
+Add a small testable period/time component, for example:
 
 ```text
-Id
-UserId
-Status
-StartedAtUtc
-UpdatedAtUtc
-FinishedAtUtc?
-DistanceMeters
-DurationSeconds
-AveragePaceSecondsPerKm?
-StartingRank
-CurrentRank
-SeasonPointsEarned
-Overtakes
-```
-
-Status:
-
-```text
-Active
-Completed
-```
-
-Create a small overtake entity/value object:
-
-```text
-OpponentKey
-OpponentDisplayName
-CompletedAtUtc
-DistanceThresholdMeters
-PointsAwarded
-RankBefore
-RankAfter
-```
-
-Do not add fields for future features that Stage 2 does not use.
-
----
-
-# 7. Run Lifecycle
-
-## Start Run
-
-A user can have only one active run.
-
-If no active run exists:
-
-```text
-status = Active
-distance = 0
-duration = 0
-starting rank = demo starting rank
-current rank = starting rank
-points = 0
-overtakes = empty
-```
-
-If an active run already exists:
-
-```text
-409 Conflict
-```
-
-Do not silently create a second run.
-
-## Update Progress
-
-Only an active run can be updated.
-
-Input:
-
-```text
-distanceMeters
-durationSeconds
-```
-
-Validation:
-
-- distance >= 0;
-- duration >= 0;
-- distance must never decrease;
-- duration must never decrease;
-- completed run cannot be updated.
-
-Do not add anti-cheat or speed validation.
-
-## Finish Run
-
-Only an active run can be finished.
-
-Input:
-
-```text
-distanceMeters
-durationSeconds
-```
-
-Apply the same non-decreasing validation.
-
-Then:
-
-```text
-apply final progress
-evaluate newly crossed demo targets
-status = Completed
-finishedAtUtc = now
-persist
-return post-run summary
-```
-
-Finishing an already completed run must not duplicate points or overtakes.
-
-Return:
-
-```text
-409 Conflict
-```
-
----
-
-# 8. Run Metrics
-
-Implement real average pace calculation.
-
-Formula:
-
-```text
-paceSecondsPerKm =
-    durationSeconds / (distanceMeters / 1000)
-```
-
-Calculate only when:
-
-```text
-distanceMeters > 0
-```
-
-Otherwise:
-
-```text
-AveragePaceSecondsPerKm = null
-```
-
-Create a small pure component, e.g.:
-
-```text
-RunMetricsCalculator
-```
-
-It must not depend on HTTP, MongoDB, authentication, controllers, or demo opponents.
-
-Add unit tests.
-
----
-
-# 9. Demo Competition
-
-Add:
-
-```text
-IRunCompetitionProvider
-        ↑
-DemoRunCompetitionProvider
-```
-
-Use deterministic demo data.
-
-Starting rank:
-
-```text
-#41
-```
-
-Targets:
-
-| Order | Opponent | Distance threshold | Reward |
-|---:|---|---:|---:|
-| 1 | Runner_92 | 1200 m | +16 |
-| 2 | Marta | 2500 m | +14 |
-| 3 | Runner_17 | 4000 m | +11 |
-| 4 | Kamil_24 | 5500 m | +18 |
-
-These are temporary demo values.
-
-Do not implement a points formula.
-
-The target itself contains its reward.
-
-Do not create a fake leaderboard in this stage.
-
----
-
-# 10. Overtake Evaluation
-
-For every progress update:
-
-```text
-if currentDistance >= target.DistanceThreshold
-and target was not already completed
-then create an overtake
-```
-
-A single update may cross multiple targets.
-
-Example:
-
-```text
-previous = 900 m
-new = 2800 m
-```
-
-Expected:
-
-```text
-Runner_92 overtaken
-Marta overtaken
-```
-
-Each target is awarded once only.
-
-Every newly completed target:
-
-1. persists one overtake;
-2. decreases rank by one;
-3. adds the target reward;
-4. returns an `OVERTAKE` event.
-
-Example:
-
-```text
-Start rank = 41
-
-Runner_92:
-41 -> 40
-+16
-
-Marta:
-40 -> 39
-+14
-```
-
-Final:
-
-```text
-CurrentRank = 39
-SeasonPointsEarned = 30
-```
-
-Repeated progress above the same threshold must not award anything again.
-
----
-
-# 11. Competition Snapshot
-
-Start/progress responses must include:
-
-```json
-{
-  "rank": 41,
-  "seasonPointsEarned": 0,
-  "currentTarget": {
-    "opponent": "Runner_92",
-    "distanceToOvertakeMeters": 1200,
-    "potentialPoints": 16
-  }
-}
-```
-
-After progress:
-
-```json
-{
-  "rank": 41,
-  "seasonPointsEarned": 0,
-  "currentTarget": {
-    "opponent": "Runner_92",
-    "distanceToOvertakeMeters": 190,
-    "potentialPoints": 16
-  }
-}
-```
-
-After overtake:
-
-```json
-{
-  "rank": 40,
-  "seasonPointsEarned": 16,
-  "currentTarget": {
-    "opponent": "Marta",
-    "distanceToOvertakeMeters": 1300,
-    "potentialPoints": 14
-  }
-}
-```
-
-When all targets are completed:
-
-```text
-currentTarget = null
-```
-
-`distanceToOvertakeMeters` must never become negative.
-
----
-
-# 12. Overtake Events
-
-When progress crosses a target, return only events newly created by that request.
-
-Example:
-
-```json
-{
-  "events": [
-    {
-      "type": "OVERTAKE",
-      "opponent": "Runner_92",
-      "rankBefore": 41,
-      "rankAfter": 40,
-      "pointsAwarded": 16
-    }
-  ]
-}
-```
-
-Historical overtakes remain stored on the run.
-
-Do not use SignalR or WebSockets.
-
-The frontend receives events through normal HTTP progress requests.
-
----
-
-# 13. Persistence
-
-Add:
-
-```text
-IRunSessionStore
-        ↑
-MongoRunSessionStore
-```
-
-Minimum operations:
-
-```text
-GetActiveByUserIdAsync
-GetByIdAsync
-AddAsync
-SaveAsync
-```
-
-Exact method names may follow existing project conventions.
-
-Do not build a generic repository framework.
-
----
-
-# 14. MongoDB
-
-Create collection:
-
-```text
-runs
-```
-
-Reuse existing MongoDB registrations.
-
-Do not create a second `MongoClient`.
-
-Recommended stored document:
-
-```json
-{
-  "_id": "...",
-  "userId": "demo-user-1",
-  "status": "active",
-  "startedAtUtc": "...",
-  "updatedAtUtc": "...",
-  "finishedAtUtc": null,
-  "distanceMeters": 1100,
-  "durationSeconds": 340,
-  "averagePaceSecondsPerKm": 309.09,
-  "startingRank": 41,
-  "currentRank": 41,
-  "seasonPointsEarned": 0,
-  "overtakes": []
-}
-```
-
-Persist all final values and overtakes after completion.
-
-Add only indexes needed by Stage 2.
-
-Recommended:
-
-```text
-userId + status
-```
-
-for active-run lookup.
-
-Do not add migrations/versioning infrastructure.
-
----
-
-# 15. Application Service
-
-Create a focused application service/use case such as:
-
-```text
-RunSessionService
+KrakowPeriodResolver
 ```
 
 Responsibilities:
 
 ```text
-StartAsync
-GetActiveAsync
-GetByIdAsync
-UpdateProgressAsync
-FinishAsync
+GetTodayUtcRange(now)
+GetCurrentWeekUtcRange(now)
+GetCurrentMonthUtcRange(now)
+GetPreviousMonthUtcRange(now)
 ```
 
-It orchestrates:
+Use:
 
 ```text
-ICurrentUserAccessor
-IRunSessionStore
-IRunCompetitionProvider
-RunMetricsCalculator
-TimeProvider
+Europe/Warsaw
 ```
 
-Use built-in `TimeProvider` if it fits the existing project.
+as the intended timezone.
 
-Do not put MongoDB or HTTP details inside the service.
+If cross-platform runtime support requires a fallback timezone id, implement the smallest safe fallback.
 
-Do not introduce command/query framework boilerplate.
+Do not add a third-party time library.
+
+Temporary MVP rule for assigning a run to a period:
+
+```text
+Use RunSession.StartedAtUtc
+```
+
+A run belongs to the local Kraków day/month in which it started.
 
 ---
 
-# 16. API Endpoints
+# 6. Real vs Demo Components
 
-Use base route:
+## Real now
+
+Implement from actual Mongo run data:
+
+- completed run history;
+- recent runs;
+- run totals;
+- total distance;
+- total duration;
+- weighted average pace;
+- total overtakes;
+- actual points earned by current user;
+- current-day points;
+- current-month points;
+- current-week activity;
+- previous-month activity;
+- longest completed run;
+- fastest average-pace completed run;
+- active-run points included in current period totals where applicable.
+
+## Demo now
+
+Keep replaceable:
+
+- other leaderboard users;
+- other users' point totals;
+- city-wide leaderboard population;
+- Kraków activity-zone counts;
+- map popularity values;
+- map average pace values;
+- live runner counts.
+
+Use replaceable providers.
+
+---
+
+# 7. Explicit Non-Goals
+
+Do **not** implement during Stage 3:
+
+- JWT / real authentication;
+- ASP.NET Identity;
+- friends;
+- rivals;
+- messaging;
+- 1v1 races;
+- matchmaking;
+- real multi-user ranking persistence;
+- global ranking recalculation jobs;
+- Redis;
+- background workers;
+- SignalR;
+- WebSockets;
+- notifications;
+- route ownership;
+- King of Route;
+- achievements;
+- AI Coach;
+- GPS track storage;
+- public individual runner coordinates;
+- geospatial Mongo queries;
+- external maps APIs;
+- Google Maps integration;
+- Mapbox integration;
+- Strava/Garmin imports;
+- real anti-cheat;
+- production season-reset jobs;
+- historical season persistence;
+- a new database;
+- a new Mongo client.
+
+---
+
+# 8. Read-Side Run Abstraction
+
+Do not overload the write-oriented `IRunSessionStore` with many reporting queries.
+
+Add a purpose-specific read abstraction in Application:
 
 ```text
-/api/runs
+IRunHistoryReader
+        ↑
+MongoRunHistoryReader
 ```
 
-## Start
+Recommended read model:
+
+```text
+RunHistoryItem
+```
+
+Minimum fields:
+
+```text
+Id
+StartedAtUtc
+FinishedAtUtc
+DistanceMeters
+DurationSeconds
+AveragePaceSecondsPerKm
+OvertakesCount
+PointsEarned
+```
+
+Recommended operations:
+
+```text
+GetCompletedAsync(userId, fromUtc?, toUtc?, limit?, cancellationToken)
+```
+
+It is acceptable to aggregate in Application for MVP.
+
+Do not build a generic reporting repository.
+
+---
+
+# 9. Mongo Run History Reader
+
+Implement `MongoRunHistoryReader` using the existing `runs` collection.
+
+Requirements:
+
+- query only the supplied user's runs;
+- completed runs only;
+- newest first for recent history;
+- optional UTC period filtering;
+- limit server-side where practical;
+- reuse existing `IMongoDatabase`;
+- do not instantiate another `MongoClient`.
+
+Add only an index that materially helps these queries.
+
+Recommended:
+
+```text
+userId + status + startedAtUtc
+```
+
+---
+
+# 10. Run History API
+
+Add:
 
 ```http
-POST /api/runs
+GET /api/runs/history
 ```
 
-No user id in request body.
-
-Success:
+Query:
 
 ```text
-201 Created
+limit
 ```
+
+Default:
+
+```text
+10
+```
+
+Allowed:
+
+```text
+1..50
+```
+
+Return completed runs newest first.
 
 Example:
 
 ```json
 {
-  "id": "run-id",
-  "status": "active",
-  "startedAtUtc": "2026-10-03T16:00:00Z",
-  "distanceMeters": 0,
-  "durationSeconds": 0,
-  "averagePaceSecondsPerKm": null,
-  "competition": {
-    "rank": 41,
-    "seasonPointsEarned": 0,
-    "currentTarget": {
-      "opponent": "Runner_92",
-      "distanceToOvertakeMeters": 1200,
-      "potentialPoints": 16
+  "items": [
+    {
+      "id": "run-id",
+      "startedAtUtc": "2026-10-03T16:00:00Z",
+      "finishedAtUtc": "2026-10-03T16:36:50Z",
+      "distanceMeters": 6800,
+      "durationSeconds": 2210,
+      "averagePaceSecondsPerKm": 325,
+      "overtakesCount": 4,
+      "pointsEarned": 59
     }
-  }
+  ]
 }
 ```
 
-If active run exists:
-
-```text
-409 Conflict
-```
-
-## Get Active Run
-
-```http
-GET /api/runs/active
-```
-
-Purpose:
-
-- frontend reload/resume;
-- proving persistence after restart.
-
-Do not create a run from this endpoint.
-
-## Get Run
-
-```http
-GET /api/runs/{runId}
-```
-
-Return it only if it belongs to the current demo user.
-
-Never expose another user's run by arbitrary id.
-
-## Update Progress
-
-```http
-PATCH /api/runs/{runId}/progress
-```
-
-Request:
-
-```json
-{
-  "distanceMeters": 1010,
-  "durationSeconds": 320
-}
-```
-
-Example response:
-
-```json
-{
-  "id": "run-id",
-  "status": "active",
-  "distanceMeters": 1010,
-  "durationSeconds": 320,
-  "averagePaceSecondsPerKm": 316.83,
-  "competition": {
-    "rank": 41,
-    "seasonPointsEarned": 0,
-    "currentTarget": {
-      "opponent": "Runner_92",
-      "distanceToOvertakeMeters": 190,
-      "potentialPoints": 16
-    }
-  },
-  "events": []
-}
-```
-
-## Finish
-
-```http
-POST /api/runs/{runId}/finish
-```
-
-Request:
-
-```json
-{
-  "distanceMeters": 6800,
-  "durationSeconds": 2210
-}
-```
-
-Success:
-
-```text
-200 OK
-```
-
-Return post-run summary.
+Empty history returns `200` with an empty array.
 
 ---
 
-# 17. Post-Run Summary
+# 11. Personal Progress
+
+Create:
+
+```text
+ProgressService
+```
+
+Calculate from real completed run history.
+
+Do not persist calculated progress documents.
+
+Lifetime output:
+
+```text
+completedRuns
+totalDistanceMeters
+totalDurationSeconds
+averagePaceSecondsPerKm
+totalOvertakes
+totalPointsEarned
+longestRunDistanceMeters
+fastestRunAveragePaceSecondsPerKm
+```
+
+Weighted average pace:
+
+```text
+totalDurationSeconds / (totalDistanceMeters / 1000)
+```
+
+when distance > 0, otherwise null.
+
+Fastest run = lowest valid average pace.
+
+---
+
+# 12. Period Progress
+
+Return real aggregates for:
+
+```text
+currentWeek
+currentMonth
+previousMonth
+```
+
+Each period:
+
+```text
+completedRuns
+distanceMeters
+durationSeconds
+averagePaceSecondsPerKm
+pointsEarned
+```
+
+Comparison:
+
+```text
+monthlyDistanceDeltaMeters
+monthlyAveragePaceDeltaSecondsPerKm
+```
+
+Rules:
+
+```text
+distanceDelta = currentMonth.distance - previousMonth.distance
+
+paceDelta = currentMonth.averagePace - previousMonth.averagePace
+```
+
+Negative pace delta = faster.
+
+If either pace is unavailable:
+
+```text
+monthlyAveragePaceDeltaSecondsPerKm = null
+```
+
+---
+
+# 13. Progress API
+
+Add:
+
+```http
+GET /api/progress
+```
+
+All-zero progress is valid and returns `200`.
+
+Do not return `404` merely because the user has no completed runs.
+
+---
+
+# 14. Current User Period Score
+
+The leaderboard layer must compute:
+
+```text
+today points
+current-month points
+```
+
+Source:
+
+```text
+completed runs in the period
++
+active run points if active run started in the same period
+```
+
+Do not double count after completion.
+
+Use:
+
+- `IRunHistoryReader` for completed runs;
+- existing `IRunSessionStore.GetActiveByUserIdAsync` for active run.
+
+---
+
+# 15. Demo Leaderboard Provider
+
+Create:
+
+```text
+ILeaderboardProvider
+        ↑
+DemoLeaderboardProvider
+```
+
+The provider receives the current user's actual point total and produces deterministic leaderboard data.
+
+The provider owns all fake competitor data.
+
+Do not:
+
+- persist fake competitors in MongoDB;
+- add fake users to the `users` collection;
+- hardcode fake leaderboard rows inside controllers.
+
+Required periods:
+
+```text
+Today
+Month
+```
+
+Current user must be inserted dynamically.
+
+Sort:
+
+```text
+points descending
+```
+
+Use deterministic tie-breaking.
+
+Mark:
+
+```text
+isCurrentUser = true
+```
+
+---
+
+# 16. Leaderboard Response
 
 Return:
 
 ```text
-runId
-startedAtUtc
-finishedAtUtc
-distanceMeters
-durationSeconds
-averagePaceSecondsPerKm
-overtakesCount
-overtakes
-rankBefore
-rankAfter
-seasonPointsEarned
-nextTarget
+period
+periodStartUtc
+periodEndUtc
+currentUser
+top
+aroundMe
 ```
 
 Example:
 
 ```json
 {
-  "runId": "run-id",
-  "distanceMeters": 6800,
-  "durationSeconds": 2210,
-  "averagePaceSecondsPerKm": 325,
-  "overtakesCount": 4,
-  "rankBefore": 41,
-  "rankAfter": 37,
-  "seasonPointsEarned": 59,
-  "overtakes": [
+  "period": "today",
+  "currentUser": {
+    "rank": 37,
+    "points": 59
+  },
+  "top": [],
+  "aroundMe": [
     {
-      "opponent": "Runner_92",
-      "pointsAwarded": 16
+      "rank": 36,
+      "displayName": "Marta",
+      "points": 64,
+      "isCurrentUser": false
     },
     {
-      "opponent": "Marta",
-      "pointsAwarded": 14
+      "rank": 37,
+      "displayName": "You",
+      "points": 59,
+      "isCurrentUser": true
     }
-  ],
-  "nextTarget": null
+  ]
 }
 ```
 
-Keep this response frontend-friendly for the presentation.
+Return at most:
+
+```text
+top 10
+```
+
+Recommended `aroundMe`:
+
+```text
+2 above
+current user
+2 below
+```
 
 ---
 
-# 18. Error Mapping
+# 17. Demo Ranking Consistency
 
-Use existing centralized Problem Details handling.
+Where practical, choose deterministic daily competitor scores so the first complete Stage 2 demo run approximately aligns with the existing run story:
 
-Minimum behavior:
+```text
+0 points  -> around #41
+16 points -> around #40
+30 points -> around #39
+41 points -> around #38
+59 points -> around #37
+```
 
-| Situation | HTTP |
-|---|---:|
-| Start while active run exists | 409 |
-| Run not found | 404 |
-| Run belongs to another user | 404 |
-| Negative distance | 400 |
-| Negative duration | 400 |
-| Distance decreases | 400 |
-| Duration decreases | 400 |
-| Update completed run | 409 |
-| Finish completed run | 409 |
+This is presentation consistency only.
 
-Do not expose internal MongoDB errors.
+Do not rewrite the Stage 2 competition engine solely to perfect this mapping.
 
 ---
 
-# 19. Dependency Injection
+# 18. Leaderboard APIs
 
-Register only Stage 2 dependencies:
+Add:
+
+```http
+GET /api/leaderboards/today
+```
+
+and:
+
+```http
+GET /api/leaderboards/month
+```
+
+No client-provided `userId`.
+
+Resolve current demo user server-side.
+
+No activity is valid:
+
+```text
+points = 0
+```
+
+---
+
+# 19. Privacy-Safe Kraków Activity Map
+
+Create:
+
+```text
+IActivityMapProvider
+        ↑
+DemoKrakowActivityMapProvider
+```
+
+Return aggregate zones only.
+
+Minimum demo zones:
+
+```text
+Błonia
+Bulwary Wiślane
+Zakrzówek
+Park Jordana
+Las Wolski
+```
+
+Each zone may contain:
+
+```text
+id
+name
+latitude
+longitude
+activeRunners
+runs
+averagePaceSecondsPerKm
+activityLevel
+```
+
+Coordinates represent approximate public-area centers.
+
+They must never represent an individual runner's position.
+
+---
+
+# 20. Activity Periods
+
+Support:
+
+```text
+live
+today
+month
+```
+
+The demo provider may return deterministic different values for each period.
+
+No real geolocation ingestion.
+
+No external map API.
+
+---
+
+# 21. Map API
+
+Add:
+
+```http
+GET /api/map/activity
+```
+
+Query:
+
+```text
+period=live|today|month
+```
+
+Default:
+
+```text
+today
+```
+
+Invalid period:
+
+```text
+400 Bad Request
+```
+
+Return:
+
+```text
+period
+generatedAtUtc
+zones
+```
+
+Do not expose user IDs or individual locations.
+
+---
+
+# 22. Mongo Collections
+
+Stage 3 should normally reuse:
+
+```text
+users
+runs
+```
+
+Do not create collections for:
+
+```text
+leaderboards
+seasons
+map activity
+demo competitors
+progress
+statistics
+```
+
+These remain derived or provider-based in this stage.
+
+---
+
+# 23. Controllers
+
+Recommended:
+
+```text
+RunsController
+    + GET /api/runs/history
+
+LeaderboardsController
+    GET /api/leaderboards/today
+    GET /api/leaderboards/month
+
+ProgressController
+    GET /api/progress
+
+MapController
+    GET /api/map/activity
+```
+
+Controllers must not:
+
+- calculate totals;
+- query Mongo directly;
+- sort leaderboards;
+- contain demo competitors;
+- contain demo map zones.
+
+---
+
+# 24. Dependency Injection
+
+Expected registrations:
+
+```text
+IRunHistoryReader
+    -> MongoRunHistoryReader
+
+ILeaderboardProvider
+    -> DemoLeaderboardProvider
+
+IActivityMapProvider
+    -> DemoKrakowActivityMapProvider
+
+KrakowPeriodResolver
+ProgressService
+LeaderboardService
+```
+
+Reuse:
 
 ```text
 ICurrentUserAccessor
-    -> DemoCurrentUserAccessor
-
 IRunSessionStore
-    -> MongoRunSessionStore
-
-IRunCompetitionProvider
-    -> DemoRunCompetitionProvider
-
-RunMetricsCalculator
-RunSessionService
+IMongoDatabase
+TimeProvider
 ```
 
-Reuse the existing DI style.
+---
+
+# 25. Error Behavior
+
+Use existing Problem Details.
+
+| Situation | HTTP |
+|---|---:|
+| invalid history limit | 400 |
+| invalid map period | 400 |
+| no run history | 200 |
+| no leaderboard points | 200 |
+| no previous-month data | 200 |
+| unexpected persistence failure | sanitized 500 |
 
 ---
 
-# 20. Tests
+# 26. Tests — Periods
 
-Stage 2 is not complete without tests.
+Test:
 
-## Unit — Metrics
+- local Kraków day -> UTC range;
+- current week;
+- current month;
+- previous month;
+- representative winter/summer timestamps where practical.
 
-- zero distance -> null pace;
-- 1000 m / 300 s -> 300 sec/km;
-- normal decimal-distance calculation.
-
-## Unit — Lifecycle
-
-- start creates active run;
-- second start conflicts;
-- progress updates run;
-- distance cannot decrease;
-- duration cannot decrease;
-- completed run cannot update;
-- finish completes run;
-- completed run cannot finish twice.
-
-## Unit — Competition
-
-- before threshold -> no event;
-- crossing first threshold -> one overtake;
-- repeated update -> no duplicate;
-- large jump -> multiple overtakes;
-- rank changes once per overtake;
-- points added once per overtake;
-- next target is correct;
-- distance to target never negative.
-
-## API / Integration
-
-At minimum:
-
-- start endpoint contract;
-- active-run conflict;
-- invalid progress;
-- successful progress;
-- finish endpoint contract.
-
-Automated tests must not depend on developer Atlas credentials.
+Use deterministic time.
 
 ---
 
-# 21. Manual Demo Verification
+# 27. Tests — Progress
 
-After automated tests pass, verify against the configured demo MongoDB:
+Test:
+
+- no completed runs;
+- one run;
+- multiple runs;
+- weighted average pace;
+- overtakes total;
+- points total;
+- longest run;
+- fastest run;
+- current week;
+- current month;
+- previous month;
+- distance delta;
+- pace delta;
+- missing previous pace -> null delta.
+
+---
+
+# 28. Tests — Leaderboards
+
+Test:
+
+- 0-point user insertion;
+- current score from real run totals;
+- active-run points included once;
+- completed run not double-counted;
+- descending ordering;
+- deterministic tie handling;
+- current rank;
+- top max 10;
+- aroundMe includes user;
+- today/month demo populations can differ.
+
+---
+
+# 29. Tests — History
+
+Test:
+
+- completed runs only;
+- newest first;
+- limit respected;
+- other users excluded;
+- empty list;
+- period filtering where appropriate.
+
+---
+
+# 30. Tests — Map
+
+Test:
+
+- live;
+- today;
+- month;
+- invalid period -> 400;
+- aggregate zones exist;
+- no user id;
+- no individual-runner coordinate model.
+
+---
+
+# 31. API / Integration Tests
+
+Add focused tests for:
+
+```text
+GET /api/runs/history
+GET /api/leaderboards/today
+GET /api/leaderboards/month
+GET /api/progress
+GET /api/map/activity
+```
+
+Verify that after a persisted completed run:
+
+- history contains it;
+- progress reflects it;
+- leaderboards reflect its points.
+
+All existing Stage 1/2 tests must continue passing.
+
+Automated tests must not require Atlas credentials.
+
+---
+
+# 32. Manual Demo Verification
+
+Use configured real MongoDB.
 
 ```text
 1. Login as demo user.
-2. POST /api/runs.
-3. Verify a document appears in `runs`.
-4. PATCH progress below 1200 m.
-5. Verify no overtake.
-6. PATCH progress above 1200 m.
-7. Verify Runner_92 appears exactly once.
-8. PATCH progress above 2500 m.
-9. Verify Marta appears exactly once.
-10. Restart API/container.
-11. GET /api/runs/active.
-12. Verify active run survived restart.
-13. Finish the run.
-14. Verify Mongo document becomes completed.
-15. Restart API/container.
-16. GET /api/runs/{id}.
-17. Verify metrics/overtakes/points remain persisted.
+
+2. GET /api/leaderboards/today
+   Record baseline.
+
+3. GET /api/progress
+   Record baseline.
+
+4. POST /api/runs.
+
+5. PATCH run to 2800 m / 840 s.
+   Existing Stage 2 should award 30 run points.
+
+6. GET /api/leaderboards/today.
+   Active points should appear once.
+
+7. Finish at 6800 m / 2210 s.
+   Existing Stage 2 should finish with 59 run points.
+
+8. GET /api/leaderboards/today.
+   Completed score must be present and not double counted.
+
+9. GET /api/leaderboards/month.
+
+10. GET /api/runs/history.
+    Completed run must appear.
+
+11. GET /api/progress.
+    Totals must reflect persisted run.
+
+12. Restart API/container.
+
+13. Repeat leaderboard/history/progress.
+    Mongo-derived values must survive restart.
+
+14. GET /api/map/activity?period=live
+15. GET /api/map/activity?period=today
+16. GET /api/map/activity?period=month
 ```
+
+If the database already has completed demo runs, compare deltas rather than assuming zero state.
 
 ---
 
-# 22. Implementation Order
+# 33. Implementation Order
 
-## Task 1 — Current User Boundary
+## Task 1 — Period Boundaries
+- [x] Add `KrakowPeriodResolver`.
+- [x] Add today/week/current-month/previous-month ranges.
+- [x] Add deterministic tests.
 
-- [x] Add `ICurrentUserAccessor`.
-- [x] Add `DemoCurrentUserAccessor`.
-- [x] Resolve the existing demo user.
-- [x] Register DI.
-- [x] Add focused tests.
+## Task 2 — Run History Reader
+- [x] Add `RunHistoryItem`.
+- [x] Add `IRunHistoryReader`.
+- [x] Add `MongoRunHistoryReader`.
+- [x] Add useful Mongo index if needed.
+- [x] Add tests.
 
-## Task 2 — Running Domain
+## Task 3 — Run History API
+- [x] Add history contract.
+- [x] Add `GET /api/runs/history`.
+- [x] Add `limit` validation.
+- [x] Add API tests.
 
-- [x] Add `RunSession`.
-- [x] Add run status.
-- [x] Add overtake model.
-- [x] Add lifecycle/state validation.
+## Task 4 — Personal Progress
+- [x] Add progress models.
+- [x] Add `ProgressService`.
+- [x] Implement lifetime aggregates.
+- [x] Implement period aggregates.
+- [x] Implement comparison.
+- [x] Add unit tests.
+- [x] Add `GET /api/progress`.
+- [x] Add API tests.
+
+## Task 5 — Demo Leaderboard
+- [x] Add leaderboard models.
+- [x] Add `ILeaderboardProvider`.
+- [x] Add `DemoLeaderboardProvider`.
+- [x] Add deterministic today/month competitors.
+- [x] Insert current user dynamically.
+- [x] Implement top 10.
+- [x] Implement aroundMe.
 - [x] Add unit tests.
 
-## Task 3 — Metrics
+## Task 6 — Leaderboard Service
+- [x] Add `LeaderboardService`.
+- [x] Aggregate completed current-user points.
+- [x] Include active-run points when applicable.
+- [x] Prevent double counting.
+- [x] Use `KrakowPeriodResolver`.
+- [x] Add tests.
 
-- [x] Add `RunMetricsCalculator`.
-- [x] Calculate average pace.
+## Task 7 — Leaderboard API
+- [x] Add today endpoint.
+- [x] Add month endpoint.
+- [x] Add contracts.
+- [x] Add integration tests.
+
+## Task 8 — Activity Map Provider
+- [x] Add activity models.
+- [x] Add `IActivityMapProvider`.
+- [x] Add `DemoKrakowActivityMapProvider`.
+- [x] Add aggregate zones.
+- [x] Add live/today/month periods.
 - [x] Add unit tests.
 
-## Task 4 — Demo Competition
+## Task 9 — Map API
+- [x] Add `GET /api/map/activity`.
+- [x] Default to `today`.
+- [x] Validate period.
+- [x] Add API tests.
 
-- [x] Add `IRunCompetitionProvider`.
-- [x] Add `DemoRunCompetitionProvider`.
-- [x] Add deterministic targets.
-- [x] Add overtake evaluation.
-- [x] Ensure idempotency.
-- [x] Add unit tests.
-
-## Task 5 — Mongo Persistence
-
-- [x] Add `IRunSessionStore`.
-- [x] Add Mongo run document mapping.
-- [x] Add `MongoRunSessionStore`.
-- [x] Add `runs` collection.
-- [x] Add active-run index.
-- [x] Reuse existing Mongo registrations.
-
-## Task 6 — Application Service
-
-- [x] Add `RunSessionService`.
-- [x] Implement `StartAsync`.
-- [x] Implement `GetActiveAsync`.
-- [x] Implement `GetByIdAsync`.
-- [x] Implement `UpdateProgressAsync`.
-- [x] Implement `FinishAsync`.
-- [x] Add service tests.
-
-## Task 7 — API
-
-- [x] Add request/response DTOs.
-- [x] Add runs controller.
-- [x] Add start endpoint.
-- [x] Add get-active endpoint.
-- [x] Add get-by-id endpoint.
-- [x] Add progress endpoint.
-- [x] Add finish endpoint.
-- [x] Preserve Problem Details behavior.
-
-## Task 8 — Validation
-
+## Task 10 — Regression Validation
 - [x] Build solution.
 - [x] Run full test suite.
-- [x] Fix regressions.
+- [x] Verify Stage 1 auth/health.
+- [x] Verify Stage 2 run flow.
+- [x] Verify Stage 3 endpoints.
 - [x] Verify OpenAPI.
-- [x] Verify health endpoints.
-- [x] Verify demo auth still works.
 - [x] Verify Docker build.
 
-## Task 9 — Real Mongo Demo Flow
+## Task 11 — Real Mongo Demo Flow
+- [x] Execute Section 32.
+- [x] Verify history persistence.
+- [x] Verify progress persistence.
+- [x] Verify leaderboard derives from runs.
+- [x] Verify no active/completed double count.
+- [x] Verify restart behavior.
 
-- [x] Execute Section 21.
-- [x] Verify restart persistence.
-- [x] Verify no duplicated rewards.
-- [x] Verify completed run loads after restart.
-
-## Task 10 — Minimal Documentation
-
-- [x] Update README with Stage 2 endpoints.
+## Task 12 — Minimal Documentation
+- [x] Update README with Stage 3 endpoints.
 - [x] Add minimal curl examples.
+- [x] Document real-vs-demo boundaries.
 - [x] Do not rewrite unrelated documentation.
 
 ---
 
-# 23. Acceptance Criteria
+# 34. Acceptance Criteria
 
-Stage 2 is complete only when:
+Stage 3 is complete only when:
 
 - [x] Stage 1 still works.
-- [x] Demo login still works.
-- [x] A run can be started.
-- [x] Only one active run per user is allowed.
-- [x] Active run persists in MongoDB.
-- [x] Active run survives restart.
-- [x] Progress can be updated.
-- [x] Distance/duration cannot move backward.
-- [x] Average pace is correct.
-- [x] Demo target distance decreases with progress.
-- [x] Crossing target creates `OVERTAKE`.
-- [x] Overtake persists.
-- [x] Rank changes exactly once per target.
-- [x] Points are awarded exactly once per target.
-- [x] One large progress jump can complete multiple targets.
-- [x] Run can be finished.
-- [x] Completed run persists.
-- [x] Completed run survives restart.
-- [x] Post-run summary contains competition data.
-- [x] Re-finishing does not duplicate rewards.
+- [x] Stage 2 still works.
+- [x] Existing tests still pass.
+- [x] History endpoint returns persistent completed runs.
+- [x] History is current-user only.
+- [x] History is newest first.
+- [x] History limit is validated.
+- [x] Progress is derived from actual run data.
+- [x] Weighted average pace is correct.
+- [x] Current-week aggregation is correct.
+- [x] Current-month aggregation is correct.
+- [x] Previous-month aggregation is correct.
+- [x] Comparison safely handles missing data.
+- [x] Daily points derive from run data.
+- [x] Monthly points derive from run data.
+- [x] Active run points can be included without double counting.
+- [x] Demo competitors are isolated behind an interface.
+- [x] Today leaderboard returns top + user position.
+- [x] Monthly leaderboard returns top + user position.
+- [x] Empty activity returns valid zero-state responses.
+- [x] Map uses replaceable provider.
+- [x] Map exposes aggregate Kraków zones only.
+- [x] Map exposes no precise individual-runner location.
+- [x] live/today/month map periods work.
+- [x] No unnecessary Mongo collections were introduced.
 - [x] Full automated test suite passes.
 - [x] Docker build succeeds.
+- [x] Real Mongo manual flow succeeds.
 
 ---
 
-# 24. Stage 3 — Do Not Implement Yet
+# 35. Architectural Guardrails
 
-The likely next stage will be read-side data for the main application UI:
+Keep these responsibilities separate:
 
 ```text
-Home / World
-    ↓
-Today's leaderboard
-Monthly leaderboard
-Runner profile / statistics
-Recent runs
-Kraków activity map demo data
+RunSession
+    = one-run lifecycle/state
+
+IRunHistoryReader
+    = read persisted completed activity
+
+ProgressService
+    = calculate user's real progress
+
+LeaderboardService
+    = calculate user's period score
+
+ILeaderboardProvider
+    = replaceable demo city competition population
+
+IActivityMapProvider
+    = replaceable aggregated city-map data
 ```
 
-Do not start Stage 3 during this plan.
+Do not merge everything into a large dashboard service.
+
+Do not place Mongo-specific code in Application.
+
+Do not place demo city data in Domain.
+
+Do not calculate statistics in controllers.
+
+---
+
+# 36. Stage 4 — Do Not Implement Yet
+
+After Stage 3, choose the next stage based on frontend/demo needs:
+
+```text
+A. Profile + richer personal progression
+B. Rivals / next-goal system
+C. Route catalog + route competition demo
+D. deployment hardening / production demo environment
+```
+
+Do not start Stage 4 during this plan.

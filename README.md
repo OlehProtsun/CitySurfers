@@ -1,4 +1,4 @@
-# CitySurfers — Stage 2 backend
+# CitySurfers — Stage 3 backend
 
 .NET 10 modular monolith: API → Application/Infrastructure; Application → Domain.
 MongoDB-specific code stays in Infrastructure. Domain owns run state and lifecycle rules.
@@ -56,6 +56,11 @@ Missing/invalid Mongo configuration or failed initialization stops startup with 
 | `GET /api/runs/{runId}` | Active run response or completed post-run summary; `404` for missing/foreign runs |
 | `PATCH /api/runs/{runId}/progress` | Updated metrics, competition snapshot, and newly created `OVERTAKE` events |
 | `POST /api/runs/{runId}/finish` | Final progress and persistent post-run summary; `409` if already completed |
+| `GET /api/runs/history?limit=10` | Current user's completed runs, newest first; limit 1–50, default 10 |
+| `GET /api/progress` | Real lifetime, current-week/month, previous-month aggregates and monthly comparison |
+| `GET /api/leaderboards/today` | Real current-user daily points, demo top 10 and nearby ranks |
+| `GET /api/leaderboards/month` | Real current-user monthly points, demo top 10 and nearby ranks |
+| `GET /api/map/activity?period=today` | Aggregate demo Kraków zones; live/today/month, default today |
 
 Login request: `{"username":"demo","password":"1234"}`.
 Success contains only `id`, `username`, and `displayName`.
@@ -88,6 +93,30 @@ Completed runs cannot change. Concurrent conflicting writes return `409`; reload
 Pace is seconds/km, or `null` at zero distance. UTC timestamps use millisecond precision for consistent Mongo round trips.
 The `runs` collection stores all metrics and overtakes. A partial unique `userId + status` index prevents multiple active runs while allowing completed history.
 
+### Stage 3 read side
+
+```sh
+curl 'http://localhost:5092/api/runs/history?limit=10'
+curl http://localhost:5092/api/progress
+curl http://localhost:5092/api/leaderboards/today
+curl http://localhost:5092/api/leaderboards/month
+curl 'http://localhost:5092/api/map/activity?period=live'
+```
+
+`IRunHistoryReader` reads completed runs from MongoDB. `ProgressService` calculates completed-run statistics,
+including weighted pace: total duration / total distance in kilometres. A missing pace is `null`.
+Monthly comparison subtracts previous month from current month; a negative pace delta means faster.
+Periods use Europe/Warsaw local calendar boundaries (weeks start Monday), converted to UTC with daylight-saving support.
+Run membership uses `startedAtUtc`; period starts are inclusive and ends exclusive.
+
+`LeaderboardService` sums persisted completed-run points and includes an active run when it started in that period.
+A run transitioning to completed is counted once. `ILeaderboardProvider` supplies deterministic demo competitors;
+their ranks and totals are presentation data, and no fake users or leaderboard documents are persisted.
+`IActivityMapProvider` supplies deterministic aggregate zones at approximate public-area centers.
+Map coordinates never represent individual runners; there is no GPS ingestion or external map service.
+Only the existing `users` and `runs` collections are used. History/progress and current-user scores survive API restarts.
+Empty activity returns `200` with empty history or zero statistics/scores. Invalid history limits and map periods return `400` Problem Details.
+
 ## Docker deployment
 
 ```sh
@@ -110,7 +139,7 @@ Before production, replace `DemoAuthService` and demo credential storage with re
 
 ## Validation status
 
-See `PLAN.md` for Stage 2 completion and acceptance criteria.
+See `PLAN.md` for Stage 3 completion and acceptance criteria.
 Local MongoDB smoke checks verify persistence, restart idempotence, unique username enforcement, seeding configuration, and database outage behavior.
 These checks do not establish connectivity to your Atlas cluster.
 
@@ -123,6 +152,18 @@ pwsh -NoProfile -File tests/Stage2.MongoSmoke.ps1 -ApiImage citysurfers-api
 ```
 
 The check requires no existing active demo run, leaves one completed demo run in `citysurfers`, and removes its temporary API container.
+
+Stage 3 validation: solution build with zero warnings/errors, all 126 automated tests, OpenAPI, Docker build,
+the existing Stage 2 real Mongo concurrency/restart checks, and the Stage 3 real Mongo flow passed.
+The Stage 3 check compares score/statistic deltas against persisted Mongo runs and verifies history/progress/leaderboards after restart.
+
+```powershell
+docker build -t citysurfers-api:stage3 .
+pwsh -NoProfile -File tests/Stage3.MongoSmoke.ps1
+```
+
+The Stage 3 check uses the configured local `citysurfers-mongo` container, requires no active demo run,
+leaves one completed demo run, and removes its temporary API container. It does not verify Atlas connectivity.
 
 References: [MongoDB C# driver](https://www.mongodb.com/docs/drivers/csharp/current/),
 [ASP.NET Core](https://learn.microsoft.com/aspnet/core/).

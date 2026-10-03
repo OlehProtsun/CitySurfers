@@ -8,6 +8,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="CitySurfers.UnitTests" />
+    <InternalsVisibleTo Include="ProxyBuilder" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="MongoDB.Driver" Version="3.12.0" />
   </ItemGroup>

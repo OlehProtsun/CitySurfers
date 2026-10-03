@@ -1,6 +1,10 @@
 using CitySurfers.Application.Authentication;
 using CitySurfers.Application.Users;
 using CitySurfers.Application.Running;
+using CitySurfers.Application.Leaderboards;
+using CitySurfers.Application.ActivityMap;
+using CitySurfers.Infrastructure.Leaderboards;
+using CitySurfers.Infrastructure.ActivityMap;
 using CitySurfers.Infrastructure.Running;
 using CitySurfers.Infrastructure.Authentication;
 using CitySurfers.Infrastructure.Persistence.MongoDb;
@@ -39,6 +43,9 @@ public static class DependencyInjection
         });
         services.AddScoped<IUserStore, MongoUserStore>();
         services.AddScoped<IRunSessionStore, MongoRunSessionStore>();
+        services.AddScoped<IRunHistoryReader, MongoRunHistoryReader>();
+        services.AddSingleton<ILeaderboardProvider, DemoLeaderboardProvider>();
+        services.AddSingleton<IActivityMapProvider, DemoKrakowActivityMapProvider>();
         services.AddScoped<ICurrentUserAccessor, DemoCurrentUserAccessor>();
         services.AddSingleton<IRunCompetitionProvider, DemoRunCompetitionProvider>();
         services.AddScoped<IAuthService, DemoAuthService>();

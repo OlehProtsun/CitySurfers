@@ -24,6 +24,12 @@ internal sealed class DemoDataSeeder(IMongoDatabase database, IOptions<DemoDataO
                     PartialFilterExpression = Builders<RunDocument>.Filter.Eq(run => run.Status, "active")
                 }), cancellationToken: cancellationToken);
 
+        await database.GetCollection<RunDocument>("runs").Indexes.CreateOneAsync(
+            new CreateIndexModel<RunDocument>(
+                Builders<RunDocument>.IndexKeys.Ascending(run => run.UserId)
+                    .Ascending(run => run.Status).Descending(run => run.StartedAtUtc).Ascending(run => run.Id),
+                new CreateIndexOptions { Name = "user_completed_history" }), cancellationToken: cancellationToken);
+
         if (!options.Value.SeedOnStartup)
             return;
 

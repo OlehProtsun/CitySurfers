@@ -118,6 +118,15 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.True(paths.TryGetProperty("/api/runs/{runId}", out _));
         Assert.True(paths.TryGetProperty("/api/runs/{runId}/progress", out _));
         Assert.True(paths.TryGetProperty("/api/runs/{runId}/finish", out _));
+        Assert.True(paths.TryGetProperty("/api/runs/history", out var history));
+        Assert.True(paths.TryGetProperty("/api/progress", out _));
+        Assert.True(paths.TryGetProperty("/api/leaderboards/today", out _));
+        Assert.True(paths.TryGetProperty("/api/leaderboards/month", out _));
+        Assert.True(paths.TryGetProperty("/api/map/activity", out _));
+        var limit = history.GetProperty("get").GetProperty("parameters").EnumerateArray()
+            .Single(parameter => parameter.GetProperty("name").GetString() == "limit").GetProperty("schema");
+        Assert.Equal(1, limit.GetProperty("minimum").GetInt32());
+        Assert.Equal(50, limit.GetProperty("maximum").GetInt32());
     }
 
     [Fact]

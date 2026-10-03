@@ -4,6 +4,8 @@ using CitySurfers.Domain.Running;
 
 namespace CitySurfers.Api.Contracts;
 
+public sealed record RunHistoryResponse(IReadOnlyList<RunHistoryItem> Items);
+
 public sealed record RunProgressInput(
     [Required, Range(0, double.MaxValue)] double? DistanceMeters,
     [Required, Range(0, double.MaxValue)] double? DurationSeconds);

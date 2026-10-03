@@ -15,6 +15,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 {
     public bool DatabaseAvailable { get; init; } = true;
     public bool StoreThrows { get; init; }
+    public bool HistoryThrows { get; init; }
     public string EnvironmentName { get; init; } = "Production";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -32,7 +33,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<IUserStore>();
             services.AddSingleton<IUserStore>(new TestUserStore(StoreThrows));
             services.RemoveAll<IRunSessionStore>();
-            services.AddSingleton<IRunSessionStore, TestRunStore>();
+            services.AddSingleton<TestRunStore>();
+            services.AddSingleton<IRunSessionStore>(provider => provider.GetRequiredService<TestRunStore>());
+            services.RemoveAll<IRunHistoryReader>();
+            services.AddSingleton<IRunHistoryReader>(provider => HistoryThrows
+                ? new ThrowingHistoryReader() : provider.GetRequiredService<TestRunStore>());
             services.RemoveAll<IDataInitializer>();
             services.AddSingleton<IDataInitializer, NoOpInitializer>();
             services.Configure<HealthCheckServiceOptions>(options =>
@@ -47,6 +52,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     private sealed class NoOpInitializer : IDataInitializer
     {
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class ThrowingHistoryReader : IRunHistoryReader
+    {
+        public Task<IReadOnlyList<RunHistoryItem>> GetCompletedAsync(string userId, DateTimeOffset? fromUtc = null,
+            DateTimeOffset? toUtc = null, int? limit = null, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("private-history-database-secret");
     }
 
     private sealed class StubHealthCheck(bool available) : IHealthCheck

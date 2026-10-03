@@ -1,4 +1,5 @@
 using CitySurfers.Api.Contracts;
+using System.ComponentModel.DataAnnotations;
 using CitySurfers.Application.Running;
 using CitySurfers.Domain.Running;
 using Microsoft.AspNetCore.Mvc;
@@ -9,8 +10,15 @@ namespace CitySurfers.Api.Controllers;
 [Route("api/runs")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-public sealed class RunsController(RunSessionService runs) : ControllerBase
+public sealed class RunsController(RunSessionService runs, RunHistoryService history) : ControllerBase
 {
+    [HttpGet("history")]
+    [ProducesResponseType<RunHistoryResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<RunHistoryResponse>> History(CancellationToken cancellationToken,
+        [FromQuery, Range(1, 50)] int limit = 10) =>
+        Ok(new RunHistoryResponse(await history.GetRecentAsync(limit, cancellationToken)));
+
     [HttpPost]
     [ProducesResponseType<RunResponse>(StatusCodes.Status201Created)]
     public async Task<ActionResult<RunResponse>> Start(CancellationToken cancellationToken)
