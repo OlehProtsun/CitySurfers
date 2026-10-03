@@ -1,4 +1,5 @@
 using CitySurfers.Application.Users;
+using CitySurfers.Application.Running;
 using CitySurfers.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -30,6 +31,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<IUserStore>();
             services.AddSingleton<IUserStore>(new TestUserStore(StoreThrows));
+            services.RemoveAll<IRunSessionStore>();
+            services.AddSingleton<IRunSessionStore, TestRunStore>();
             services.RemoveAll<IDataInitializer>();
             services.AddSingleton<IDataInitializer, NoOpInitializer>();
             services.Configure<HealthCheckServiceOptions>(options =>

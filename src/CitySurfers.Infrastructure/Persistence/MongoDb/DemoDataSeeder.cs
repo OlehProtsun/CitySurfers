@@ -15,6 +15,15 @@ internal sealed class DemoDataSeeder(IMongoDatabase database, IOptions<DemoDataO
                 new CreateIndexOptions { Unique = true, Name = "username_unique" }),
             cancellationToken: cancellationToken);
 
+        await database.GetCollection<RunDocument>("runs").Indexes.CreateOneAsync(
+            new CreateIndexModel<RunDocument>(
+                Builders<RunDocument>.IndexKeys.Ascending(run => run.UserId).Ascending(run => run.Status),
+                new CreateIndexOptions<RunDocument>
+                {
+                    Unique = true, Name = "one_active_run_per_user",
+                    PartialFilterExpression = Builders<RunDocument>.Filter.Eq(run => run.Status, "active")
+                }), cancellationToken: cancellationToken);
+
         if (!options.Value.SeedOnStartup)
             return;
 

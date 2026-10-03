@@ -113,6 +113,11 @@ public sealed class ApiTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.True(paths.TryGetProperty("/health", out _));
         Assert.True(paths.TryGetProperty("/health/ready", out _));
         Assert.True(paths.TryGetProperty("/api/auth/login", out _));
+        Assert.True(paths.TryGetProperty("/api/runs", out _));
+        Assert.True(paths.TryGetProperty("/api/runs/active", out _));
+        Assert.True(paths.TryGetProperty("/api/runs/{runId}", out _));
+        Assert.True(paths.TryGetProperty("/api/runs/{runId}/progress", out _));
+        Assert.True(paths.TryGetProperty("/api/runs/{runId}/finish", out _));
     }
 
     [Fact]

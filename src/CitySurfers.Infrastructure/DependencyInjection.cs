@@ -1,5 +1,7 @@
 using CitySurfers.Application.Authentication;
 using CitySurfers.Application.Users;
+using CitySurfers.Application.Running;
+using CitySurfers.Infrastructure.Running;
 using CitySurfers.Infrastructure.Authentication;
 using CitySurfers.Infrastructure.Persistence.MongoDb;
 using Microsoft.Extensions.Configuration;
@@ -36,6 +38,9 @@ public static class DependencyInjection
             return provider.GetRequiredService<IMongoClient>().GetDatabase(options.DatabaseName);
         });
         services.AddScoped<IUserStore, MongoUserStore>();
+        services.AddScoped<IRunSessionStore, MongoRunSessionStore>();
+        services.AddScoped<ICurrentUserAccessor, DemoCurrentUserAccessor>();
+        services.AddSingleton<IRunCompetitionProvider, DemoRunCompetitionProvider>();
         services.AddScoped<IAuthService, DemoAuthService>();
         services.AddScoped<IDataInitializer, DemoDataSeeder>();
         services.AddHealthChecks().AddCheck<MongoDbHealthCheck>("mongodb", tags: ["ready"]);
