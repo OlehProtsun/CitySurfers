@@ -10,4 +10,4 @@ TestResults/
 .env
 .env.*
 !.env.example
-Docs/*Credential*
+[Dd]ocs/*Credential*

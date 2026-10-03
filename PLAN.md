@@ -1,29 +1,31 @@
-# PLAN.md — Stage 5: Frontend Integration Readiness + Deterministic MVP Demo
+# PLAN.md — Stage 6: MVP Demo Release Candidate — Frontend Handoff + Deployment Readiness
 
 ## 0. Execution Directive
 
-This file is the source of truth for Stage 5.
+This file is the source of truth for Stage 6.
 
 The implementing AI agent must:
 
 1. Read `AGENT.md` first and follow it as the authoritative engineering and behavioral rule set.
 2. Read this `PLAN.md`.
 3. Do **not** perform a repository-wide analysis.
-4. Do **not** create another roadmap or implementation plan.
-5. Do **not** re-evaluate whether this is the correct next stage.
-6. Do **not** redesign Stage 1–4.
+4. Do **not** create another roadmap, architecture report, or implementation plan.
+5. Do **not** re-evaluate whether Stage 6 is the correct next stage.
+6. Do **not** redesign Stages 1–5.
 7. Inspect only files directly required by the current unfinished task and their immediate dependencies.
 8. Start implementing the first unfinished task immediately.
 9. Complete tasks in the order defined here unless a direct dependency requires a small local reordering.
-10. Preserve the existing N-Layer architecture and current project conventions.
-11. Reuse existing services, providers, stores, error handling, MongoDB setup, DI, test infrastructure, and Docker setup.
-12. Do not introduce new infrastructure unless this plan explicitly requires it.
-13. Keep all MVP/demo-only behavior isolated and replaceable.
-14. Validate meaningful changes with focused tests while working.
-15. Run the full regression suite before declaring the stage complete.
-16. A small mismatch between this plan and the real code is **not** permission to scan the whole repository.
-17. If a referenced symbol has a slightly different name, find the direct equivalent, make the smallest safe adaptation, and continue.
-18. Do not start frontend implementation or Stage 6.
+10. Preserve the existing N-Layer architecture and all existing API contracts.
+11. Reuse existing API, MongoDB, Docker, CORS, health-check, error-handling, and testing infrastructure.
+12. Keep Stage 6 focused on release/demo readiness. Do not add new product mechanics.
+13. Do not add frontend framework code to this backend repository.
+14. Do not choose a cloud hosting vendor or frontend framework unless already configured by the repository.
+15. Do not introduce provider-specific infrastructure or credentials.
+16. Validate meaningful changes with focused tests while working.
+17. Run the full automated suite before declaring the stage complete.
+18. If a referenced symbol/path differs slightly, find the direct equivalent, make the smallest safe adaptation, and continue.
+19. A small mismatch is **not** permission to scan the entire repository.
+20. Do not start post-MVP features after completing this stage.
 
 Required workflow:
 
@@ -38,21 +40,21 @@ Read AGENT.md
 → Continue
 ```
 
-Do not use this workflow:
+Do not use:
 
 ```text
-Analyze repository
-→ create architecture report
-→ invent roadmap
-→ redesign modules
-→ ask for approval
+Analyze whole repository
+→ produce architecture report
+→ invent another roadmap
+→ propose alternative Stage
+→ wait for approval
 ```
 
 ---
 
 # 1. Verified Starting Point
 
-Stages 1–4 are complete.
+Stages 1–5 are complete.
 
 The backend currently provides:
 
@@ -63,296 +65,28 @@ The backend currently provides:
 - demo authentication;
 - server-side current-user resolution;
 - run start / progress / finish lifecycle;
-- deterministic demo run competition;
-- overtake events;
-- persistent run points;
-- post-run summary;
+- deterministic run competition;
+- overtake events and points;
+- completed-run summaries;
 - run history;
 - personal progress;
 - daily leaderboard;
 - monthly leaderboard;
-- privacy-safe Kraków activity map;
 - monthly rival;
 - primary next-goal selection;
-- Docker image;
-- liveness and Mongo readiness health checks;
-- centralized Problem Details handling;
+- privacy-safe Kraków activity map;
+- frontend-oriented `GET /api/home`;
+- deterministic demo rank progression;
+- opt-in demo-run reset;
 - configurable CORS;
+- centralized Problem Details;
+- liveness and readiness health endpoints;
+- Development-only OpenAPI;
+- multi-stage non-root Docker image;
 - automated unit/integration tests;
 - real Mongo smoke tests.
 
-Important existing modules/components:
-
-```text
-ICurrentUserAccessor
-IUserStore
-
-RunSession
-RunSessionService
-IRunSessionStore
-IRunCompetitionProvider
-DemoRunCompetitionProvider
-
-RunHistoryService
-IRunHistoryReader
-ProgressService
-
-LeaderboardService
-ILeaderboardProvider
-DemoLeaderboardProvider
-
-RivalService
-NextGoalService
-
-IActivityMapProvider
-DemoKrakowActivityMapProvider
-```
-
-Do not replace these components.
-
----
-
-# 2. Stage 4 Review — Preserve Existing Behavior
-
-Stage 4 correctly added:
-
-```http
-GET /api/rivals/current
-GET /api/goals/next
-```
-
-It correctly:
-
-- derives the monthly rival from the existing monthly leaderboard;
-- selects the competitor directly above the current user;
-- returns `rival: null` for rank #1;
-- calculates `pointsGap` and `pointsToPass`;
-- prefers an active-run overtake target;
-- falls back to the monthly rival;
-- returns a valid null-goal state;
-- reuses `IRunCompetitionProvider`;
-- reuses `LeaderboardService`;
-- introduces no rival persistence or new Mongo collection;
-- keeps controllers thin;
-- keeps semantic data instead of localized UI text.
-
-Do not rewrite Stage 4 logic.
-
----
-
-# 3. Why Stage 5 Exists
-
-The Core MVP backend mechanics already exist.
-
-The next backend work must make the system:
-
-```text
-easy for frontend to consume
-+
-repeatable for hackathon demos
-+
-coherent across run / leaderboard / rival modules
-+
-safe to configure for browser integration
-```
-
-There are three important gaps.
-
-## Gap A — Home Requires Multiple Requests
-
-The frontend currently needs several calls to build the initial Home / Live Run state:
-
-```text
-login
-active run
-today leaderboard
-next goal
-```
-
-Stage 5 adds one focused frontend home/bootstrap read model.
-
-## Gap B — Fresh Monthly Rival Is Not Reachable Enough
-
-Current demo monthly competitor scores are much larger than the run reward ladder.
-
-A fresh user can require roughly 201 points to pass the monthly rival, while one complete deterministic demo run awards only:
-
-```text
-16 + 14 + 11 + 18 = 59 points
-```
-
-That conflicts with the product principle of short, reachable next objectives.
-
-Stage 5 fixes only the **replaceable demo competitor population**. It must not change real current-user scoring.
-
-## Gap C — Demo State Accumulates
-
-Persisted runs correctly survive restarts, but repeated hackathon presentations can move the demo user to different ranks or eventually to a null-rival state.
-
-Stage 5 adds an explicit opt-in startup reset for the demo user's runs.
-
-It must be disabled by default and must never be exposed through a public HTTP reset endpoint.
-
----
-
-# 4. Stage Goal
-
-At the end of Stage 5:
-
-1. the frontend can load its initial core state from `GET /api/home` after demo login;
-2. Home returns `200` even when there is no active run;
-3. Home contains today's current-user rank and points;
-4. Home contains a nullable compact active-run summary;
-5. Home contains the existing primary next goal;
-6. Home reuses existing leaderboard and goal logic;
-7. the demo monthly leaderboard uses the same MVP point ladder as the daily demo leaderboard;
-8. a clean demo starts around rank `#41` with a reachable rival;
-9. one complete four-overtake demo run produces coherent `#41 → #37` progression;
-10. after that run, the next monthly rival is only a small number of points away;
-11. demo run history can be intentionally reset on startup through configuration;
-12. reset is disabled by default;
-13. reset affects only the demo user's runs;
-14. CORS behavior is explicitly tested;
-15. API examples cover the complete frontend demo flow;
-16. OpenAPI contains the Home endpoint;
-17. Docker + real Mongo smoke proves the deterministic showcase;
-18. no frontend code is added yet.
-
----
-
-# 5. Intended Deterministic Demo Narrative
-
-After an intentional demo reset, the backend should support this story.
-
-## Fresh state
-
-```text
-Today:
-#41
-0 pts
-
-Next goal:
-~9 points to pass #40
-```
-
-## Start run
-
-```text
-Runner_92
-1200 m to overtake
-+16 potential points
-#41 → #40
-```
-
-## Overtake progression
-
-Existing run reward totals are:
-
-```text
-0
-16
-30
-41
-59
-```
-
-The clean demo leaderboard should align approximately as:
-
-```text
-0  → #41
-16 → #40
-30 → #39
-41 → #38
-59 → #37
-```
-
-## After finish
-
-Expected showcase state:
-
-```text
-Current monthly points: 59
-Current rank: #37
-Next rival rank: #36
-Next rival points: 64
-Points gap: 5
-Points to pass: 6
-```
-
-These numbers are deterministic demo presentation data, not permanent product scoring rules.
-
----
-
-# 6. Demo Leaderboard Alignment
-
-Modify only the replaceable demo leaderboard population.
-
-Do not change:
-
-- real current-user point aggregation;
-- run reward calculation;
-- overtake rewards;
-- target distance thresholds;
-- `LeaderboardService` aggregation;
-- period boundaries;
-- rank sorting;
-- rival selection;
-- `pointsToPass` calculation.
-
-## Stage 5 Demo Rule
-
-For MVP/demo purposes:
-
-```text
-LeaderboardPeriod.Today competitor points
-=
-existing daily demo point ladder
-
-LeaderboardPeriod.Month competitor points
-=
-the same demo point ladder
-```
-
-The existing ladder around the user is approximately:
-
-```text
-8
-24
-36
-50
-64
-...
-```
-
-This is intentionally compatible with cumulative run rewards:
-
-```text
-0
-16
-30
-41
-59
-```
-
-Result:
-
-```text
-#41 → #40 → #39 → #38 → #37
-```
-
-Do not modify `ILeaderboardProvider`.
-
-Do not create persisted leaderboard rows.
-
-Do not create a new scoring engine.
-
----
-
-# 7. Cross-Module Demo Consistency Tests
-
-Add focused tests proving clean-state coherence.
-
-Minimum expected ranks:
+Stage 5 established the deterministic showcase:
 
 ```text
 0 points  → #41
@@ -360,366 +94,210 @@ Minimum expected ranks:
 30 points → #39
 41 points → #38
 59 points → #37
+
+59 monthly points
+→ rival #36 at 64 points
+→ points gap 5
+→ points to pass 6
 ```
 
-Verify this for the demo monthly leaderboard and, where already covered, the daily leaderboard.
-
-At 59 monthly points verify:
-
-```text
-current rank = #37
-rival rank = #36
-rival points = 64
-pointsGap = 5
-pointsToPass = 6
-```
-
-If deterministic tie-breaking requires a tiny adjustment, preserve the one-position-per-overtake narrative around the clean demo state.
-
-Do not change the run competition model to force tests to pass.
+Do not change this behavior.
 
 ---
 
-# 8. Home Read Model
+# 2. Review of Stage 5 — Preserve It
 
-Add:
-
-```text
-CitySurfers.Application
-└── Home
-    ├── HomeModels.cs
-    └── HomeService.cs
-```
-
-Add:
-
-```text
-CitySurfers.Api
-└── Controllers
-    └── HomeController.cs
-```
-
-This is a frontend bootstrap/read model, not a new business domain.
-
-Do not move logic out of existing modules into Home.
-
----
-
-# 9. Home API
-
-Add:
+Stage 5 correctly implemented:
 
 ```http
 GET /api/home
 ```
 
-The endpoint returns `200` for normal application state, including when there is no active run.
-
-Recommended conceptual model:
+with:
 
 ```text
-HomeResponse
-    Today
-        Rank
-        Points
-    ActiveRun?
-        Id
-        StartedAtUtc
-        DistanceMeters
-        DurationSeconds
-        AveragePaceSecondsPerKm
-    NextGoal?
+today rank / points
+nullable active run
+nullable primary next goal
 ```
 
-Reuse existing types where appropriate.
+It also correctly:
 
-In particular:
+- reused `LeaderboardService`;
+- reused `NextGoalService`;
+- reused `IRunSessionStore`;
+- aligned Today and Month demo competition ladders;
+- preserved real current-user scoring;
+- preserved run rewards and overtake thresholds;
+- added `DemoData__ResetRunsOnStartup`;
+- kept reset disabled by default;
+- isolated reset to the demo user's runs;
+- added CORS integration tests;
+- expanded the API manual request file;
+- added real Mongo Stage 5 smoke coverage;
+- preserved the existing `users` and `runs` collection model.
 
-- reuse the existing current-user leaderboard rank/points model for `Today` if clean;
-- reuse the existing Stage 4 `NextGoal` model;
-- do not create another next-goal DTO with duplicate semantics.
-
-## Example — idle
-
-```json
-{
-  "today": {
-    "rank": 41,
-    "points": 0
-  },
-  "activeRun": null,
-  "nextGoal": {
-    "type": "rival_points",
-    "source": "monthly_leaderboard",
-    "targetDisplayName": "<deterministic competitor>",
-    "runId": null,
-    "remainingDistanceMeters": null,
-    "remainingPoints": 9,
-    "potentialPoints": null,
-    "currentRank": 41,
-    "targetRank": 40
-  }
-}
-```
-
-## Example — active run
-
-```json
-{
-  "today": {
-    "rank": 41,
-    "points": 0
-  },
-  "activeRun": {
-    "id": "run-id",
-    "startedAtUtc": "2026-10-03T18:00:00Z",
-    "distanceMeters": 600,
-    "durationSeconds": 180,
-    "averagePaceSecondsPerKm": 300
-  },
-  "nextGoal": {
-    "type": "run_overtake",
-    "source": "active_run",
-    "targetDisplayName": "Runner_92",
-    "runId": "run-id",
-    "remainingDistanceMeters": 600,
-    "remainingPoints": null,
-    "potentialPoints": 16,
-    "currentRank": 41,
-    "targetRank": 40
-  }
-}
-```
-
-Do not hard-code competitor names in Home logic.
+Do not rewrite Stage 5.
 
 ---
 
-# 10. HomeService Responsibilities
+# 3. Why Stage 6 Exists
 
-Implement `HomeService` as orchestration only.
+The backend feature set is sufficient for the hackathon Core MVP.
 
-Preferred dependencies:
+The next problem is no longer:
 
 ```text
-ICurrentUserAccessor
-IRunSessionStore
-LeaderboardService
-NextGoalService
+What backend product feature should we build?
 ```
 
-Responsibilities:
+The next problem is:
 
-1. resolve current user id;
-2. obtain today's leaderboard from `LeaderboardService`;
-3. read the optional active run from `IRunSessionStore`;
-4. obtain the existing primary goal from `NextGoalService`;
-5. compose the Home response.
+```text
+Can a frontend developer connect to this API,
+can the team run the complete demo reliably,
+and can the same container be deployed and verified safely?
+```
 
-Do not duplicate:
+Stage 6 turns the backend into an MVP demo release candidate.
 
-- leaderboard calculations;
-- current-user point aggregation;
-- rival selection;
-- goal priority;
-- competition target calculation;
-- pace calculation;
-- Mongo-specific code.
+It must provide four things:
 
-A second active-run read caused by calling `NextGoalService` is acceptable for this MVP.
+```text
+1. Frozen frontend integration contract
+2. Reproducible local release-mode demo
+3. Production-mode / remote deployment verification
+4. Automated release validation
+```
 
-Do not add caching or a complex shared query context solely to avoid one small duplicate read.
+Stage 6 must not introduce another gameplay module.
 
 ---
 
-# 11. Home Normal States
+# 4. Product Scope Decision
 
-`GET /api/home` must treat these as normal:
+The `AppContext.md` Core MVP already requires:
 
-```text
-no active run
-no rival
-no next goal
-```
+- user account;
+- starting/recording a run;
+- distance/pace/duration;
+- daily ranking;
+- season points;
+- monthly leaderboard;
+- live/simulated overtakes;
+- post-run summary;
+- personal progress;
+- privacy-safe Kraków activity map.
 
-Return nullable fields and HTTP `200`.
+Those backend capabilities already exist.
 
-Do not change the existing behavior of:
+Rivals are also implemented even though they are a secondary feature.
 
-```http
-GET /api/runs/active
-```
+Therefore Stage 6 must **not** implement:
 
-Stage 5 adds a frontend-friendly bootstrap endpoint without breaking Stage 1–4 contracts.
-
----
-
-# 12. Home Must Stay Small
-
-Do not include in Home:
-
-- full run history;
-- full progress analytics;
-- top 10 leaderboard;
-- full monthly leaderboard;
-- activity-map zones;
 - routes;
-- achievements;
-- AI Coach text;
+- King of Route;
+- AI Coach;
 - races;
-- future social data.
+- matchmaking;
+- achievements;
+- real social accounts;
+- notifications;
+- advanced anti-cheat.
 
-Dedicated screens continue using dedicated endpoints:
-
-```text
-/api/leaderboards/*
-/api/progress
-/api/map/activity
-/api/runs/history
-/api/rivals/current
-```
+Those can wait until after the MVP demo.
 
 ---
 
-# 13. Deterministic Demo Reset
+# 5. Stage Goal
 
-Extend `DemoDataOptions` with:
+At the end of Stage 6:
 
-```text
-ResetRunsOnStartup
-```
-
-Default:
-
-```text
-false
-```
-
-Environment key:
-
-```text
-DemoData__ResetRunsOnStartup
-```
-
-Add to `.env.example`:
-
-```text
-DemoData__ResetRunsOnStartup=false
-```
-
-This is an explicit hackathon/demo reset switch.
+1. the API contract used by the MVP frontend is explicitly documented and treated as frozen;
+2. the frontend team has one clear integration/handoff document;
+3. API base URL is clearly treated as external frontend configuration;
+4. the expected client call sequence is documented;
+5. live-run client behavior is documented;
+6. normal API error/recovery behavior is documented;
+7. the backend can be launched locally in a production-like demo setup with one command;
+8. that local demo setup includes MongoDB without requiring Atlas;
+9. the local demo setup starts in deterministic fresh-demo mode by default;
+10. the normal standalone Docker image remains unchanged in purpose;
+11. the production-mode API is automatically smoke-tested;
+12. a remote deployed API can be checked by a reusable smoke script;
+13. the remote smoke script does not require MongoDB credentials;
+14. a full destructive demo flow is opt-in, not the default remote check;
+15. a CI workflow builds and tests the backend automatically;
+16. the CI workflow does not require MongoDB or cloud secrets;
+17. no secrets are committed;
+18. Development OpenAPI behavior remains unchanged;
+19. Production still does not expose OpenAPI;
+20. all Stage 1–5 behavior remains green;
+21. after Stage 6, backend feature work should stop for the hackathon and frontend integration/deployment should proceed.
 
 ---
 
-# 14. Reset Safety Rules
+# 6. Stage 6 Architectural Principle
 
-When reset is `false`, current persistence behavior remains unchanged.
+Stage 6 is a release/integration stage.
 
-When reset is `true`, startup initialization must:
-
-1. ensure the demo user exists;
-2. resolve the actual persisted demo-user id;
-3. delete only runs belonging to that demo user;
-4. preserve the demo user document;
-5. preserve indexes;
-6. preserve non-demo users;
-7. preserve runs belonging to other users;
-8. continue normal startup.
-
-Do not:
-
-- drop the database;
-- drop `runs`;
-- drop `users`;
-- remove indexes;
-- delete every run;
-- create a public reset endpoint;
-- expose database credentials.
-
-Mongo deletion logic stays in Infrastructure/startup initialization.
-
-Do not place it in Application or controllers.
-
----
-
-# 15. Reset Configuration Validation
-
-Invalid configuration:
+Avoid changing:
 
 ```text
-ResetRunsOnStartup = true
-SeedOnStartup = false
+Domain
+Application business rules
+run scoring
+leaderboard algorithms
+rival algorithms
+next-goal priority
+map semantics
+Mongo document schema
 ```
 
-must fail startup through strongly typed options validation with a sanitized clear message.
-
-Do not silently ignore this invalid combination.
-
-The reset option is disabled by default.
-
-It may be intentionally enabled for a deployed hackathon demo, but only through operator configuration.
-
-There must be no HTTP reset surface.
-
----
-
-# 16. CORS Frontend Readiness
-
-Keep the existing configurable CORS implementation.
-
-Do not use `AllowAnyOrigin` in Production.
-
-Do not enable credentials.
-
-Add integration tests for:
-
-## Allowed origin
-
-Configured origin:
+Most Stage 6 work should live in:
 
 ```text
-https://frontend.example
+docs/
+tests/
+scripts or tests/
+GitHub workflow configuration
+Docker Compose demo configuration
+README
 ```
 
-must receive the expected:
+Small API/infrastructure corrections are allowed only when a Stage 6 verification test exposes a real integration or deployment blocker.
 
-```http
-Access-Control-Allow-Origin
-```
-
-header.
-
-## Disallowed origin
-
-A different origin must not receive an allow-origin header.
-
-## Preflight
-
-Verify an `OPTIONS` preflight for a mutation such as:
-
-```http
-PATCH /api/runs/{runId}/progress
-```
-
-with the configured origin, method, and content-type header.
-
-Do not hard-code a real deployment domain into source code.
+Do not manufacture code changes merely to make Stage 6 look larger.
 
 ---
 
-# 17. API Contract Stability
+# 7. Frontend Contract Freeze
 
-Do not remove or rename existing Stage 1–4 endpoint paths:
+Create:
+
+```text
+docs/MVP_FRONTEND_HANDOFF.md
+```
+
+This document is the authoritative handoff for the MVP frontend.
+
+It must describe only the currently implemented backend.
+
+Do not document unimplemented product features as if they exist.
+
+The Stage 6 frontend contract is frozen around these endpoints:
 
 ```http
 POST /api/auth/login
 
+GET  /api/home
+
 POST /api/runs
-GET /api/runs/active
-GET /api/runs/{runId}
+GET  /api/runs/active
+GET  /api/runs/{runId}
 PATCH /api/runs/{runId}/progress
 POST /api/runs/{runId}/finish
-GET /api/runs/history
+GET  /api/runs/history
 
 GET /api/progress
 
@@ -730,742 +308,1305 @@ GET /api/rivals/current
 GET /api/goals/next
 
 GET /api/map/activity
+
+GET /health
+GET /health/ready
 ```
 
-Add only:
+Do not rename these routes.
+
+Do not change successful payload shapes unless an existing contract is objectively broken.
+
+---
+
+# 8. Frontend Screen → API Mapping
+
+The frontend handoff document must map UI responsibilities to API calls.
+
+## Login / Demo Entry
+
+Use:
+
+```http
+POST /api/auth/login
+```
+
+Important MVP limitation:
+
+```text
+login validates the demo credentials,
+but does not issue a token or session.
+```
+
+Other endpoints resolve the demo user server-side.
+
+The frontend must not send or invent a user id.
+
+## Home / Main Screen
+
+Use:
 
 ```http
 GET /api/home
 ```
 
-Do not rename old JSON properties.
-
-Do not wrap all old responses in new envelopes.
-
-Do not add API versioning or GraphQL.
-
----
-
-# 18. Authentication Boundary
-
-Do not implement real authentication in Stage 5.
-
-Current demo behavior remains:
+It provides:
 
 ```text
-POST /api/auth/login
-→ validate fictional demo credentials
-→ return demo user data
-→ no JWT/session
+today.rank
+today.points
+activeRun?
+nextGoal?
 ```
 
-Other endpoints continue to resolve the demo user server-side.
+The frontend should prefer Home for initial screen bootstrap.
 
-Do not add:
+Do not call three separate endpoints merely to rebuild the same initial state.
 
-- JWT;
-- refresh tokens;
-- ASP.NET Identity;
-- OAuth;
-- authorization policies;
-- client-provided user id.
+## Activity Map
 
-Real authentication is a later replacement.
-
----
-
-# 19. Error Handling
-
-Preserve the current centralized Problem Details behavior.
-
-Do not rewrite the exception handler unless a concrete Stage 5 test exposes a frontend contract problem.
-
-Home normal states return `200`.
-
-Unexpected errors remain sanitized.
-
-Do not expose:
-
-- Mongo driver messages;
-- credentials;
-- stack traces;
-- internal provider details.
-
----
-
-# 20. OpenAPI
-
-Verify OpenAPI includes:
+Use:
 
 ```http
-GET /api/home
+GET /api/map/activity?period=live
+GET /api/map/activity?period=today
+GET /api/map/activity?period=month
 ```
 
-with a correct `200` response schema.
+Document that returned coordinates are aggregate demo activity zones, not individual live runner GPS positions.
 
-Verify existing Stage 1–4 paths remain present.
+## Rankings
 
-Development-only OpenAPI remains acceptable.
+Use:
 
-Do not add Swagger UI dependencies solely for Stage 5.
-
----
-
-# 21. CitySurfers.Api.http
-
-Expand:
-
-```text
-src/CitySurfers.Api/CitySurfers.Api.http
-```
-
-into a complete manual demo/frontend flow.
-
-Include at minimum:
-
-```text
-health
-readiness
-login
-home
-start run
-active run
-progress update
-finish run
-home after finish
-run history
-progress
-today leaderboard
-monthly leaderboard
-current rival
-next goal
-activity map
-```
-
-Use variables for host and run id where practical.
-
-Do not hard-code deployment secrets.
-
----
-
-# 22. Home Tests
-
-Minimum cases:
-
-### Case 1 — Fresh State
-
-Verify:
-
-```text
-Today rank/points present
-ActiveRun = null
-NextGoal present when rival exists
-```
-
-### Case 2 — Active Run
-
-Verify active-run summary contains:
-
-```text
-id
-startedAtUtc
-distance
-duration
-pace
-```
-
-### Case 3 — Active Run Goal
-
-Verify Home returns existing `run_overtake` goal while a target exists.
-
-### Case 4 — Finished / Idle
-
-Verify Home returns `ActiveRun = null` and Stage 4 fallback goal.
-
-### Case 5 — Null Goal
-
-If no active target and no rival:
-
-```text
-NextGoal = null
-```
-
-and Home remains `200`.
-
-Test behavior, not internal call counts.
-
----
-
-# 23. Demo Leaderboard Tests
-
-Add/update deterministic tests for:
-
-```text
-0  → #41
-16 → #40
-30 → #39
-41 → #38
-59 → #37
-```
-
-Verify the relevant progression for Month after Stage 5 alignment.
-
-Also verify:
-
-```text
-59 monthly points
-→ rival #36
-→ rival points 64
-→ pointsGap 5
-→ pointsToPass 6
-```
-
-Do not change real current-user point aggregation tests.
-
----
-
-# 24. Demo Reset Tests
-
-Add the smallest practical automated coverage for:
-
-- default reset value is `false`;
-- reset=true + seed=false fails options validation;
-- reset-disabled configuration preserves normal startup behavior.
-
-Real deletion semantics must be verified in the Stage 5 Mongo smoke flow.
-
-If existing test infrastructure supports Mongo-backed initializer testing without introducing a new framework, also test targeted deletion there.
-
-Do not build a new Mongo test framework solely for this feature.
-
----
-
-# 25. CORS Tests
-
-Add API integration tests for:
-
-```text
-allowed origin
-disallowed origin
-preflight
-```
-
-Use configuration overrides and existing replacement stores/providers.
-
-Do not require real MongoDB for CORS integration tests.
-
----
-
-# 26. Regression Validation
-
-Run the complete existing test suite.
-
-Verify no regression in:
-
-- login;
-- Mongo configuration;
-- seeding;
-- health/readiness;
-- run start;
-- active run;
-- progress;
-- finish;
-- concurrency;
-- overtake uniqueness;
-- post-run summary;
-- history;
-- personal progress;
-- daily leaderboard;
-- monthly leaderboard;
-- map;
-- rival;
-- next goal;
-- error middleware;
-- OpenAPI.
-
-Where old tests assert previous demo monthly competitor totals, update only those expectations to the new Stage 5 demo dataset.
-
-Do not weaken tests for real user scoring.
-
----
-
-# 27. Stage 5 Real Mongo / Docker Smoke
-
-Add:
-
-```text
-tests/Stage5.MongoSmoke.ps1
-```
-
-Reuse the Stage 2–4 smoke approach.
-
-Prefer a dedicated temporary database when practical, for example:
-
-```text
-citysurfers_stage5_smoke
-```
-
-Do not destroy unrelated developer data.
-
-Suggested flow:
-
-```text
-1. Build Stage 5 Docker image.
-2. Start API with local MongoDB and:
-   SeedOnStartup=true
-   ResetRunsOnStartup=true
-   configured test CORS origin.
-3. Verify /health.
-4. Verify /health/ready.
-5. Login demo user.
-6. GET /api/home.
-7. Verify:
-   today rank = 41
-   today points = 0
-   activeRun = null
-   reachable rival goal exists.
-8. Verify allowed-origin CORS.
-9. Verify mutation preflight.
-10. POST /api/runs.
-11. GET /api/home.
-12. Verify:
-    activeRun exists
-    primary goal = run_overtake
-    ranks = 41 → 40.
-13. Cross first target.
-14. Verify:
-    points = 16
-    today rank = 40
-    next run target exists.
-15. Cross all four targets.
-16. Finish run.
-17. Verify:
-    points earned = 59
-    run rank = 41 → 37.
-18. GET /api/leaderboards/today.
-19. Verify rank = 37.
-20. GET /api/leaderboards/month.
-21. Verify clean showcase rank = 37.
-22. GET /api/rivals/current.
-23. Verify:
-    rival rank = 36
-    rival points = 64
-    pointsGap = 5
-    pointsToPass = 6.
-24. GET /api/home.
-25. Verify:
-    activeRun = null
-    nextGoal = rival_points
-    remainingPoints = 6.
-26. Verify history contains completed run.
-27. Verify progress reflects completed run.
-28. Restart with ResetRunsOnStartup=false.
-29. Verify run persists.
-30. Restart with ResetRunsOnStartup=true.
-31. Verify:
-    demo history is empty
-    demo user still exists
-    clean Home state is restored.
-32. Verify no new Mongo collections.
-33. Stop/remove test container.
-34. Clean temporary database if created.
-```
-
-The script must fail on contract mismatches.
-
-Do not rely on manual inspection.
-
----
-
-# 28. Docker Validation
-
-Build the existing repository Dockerfile.
-
-Preserve:
-
-- multi-stage build;
-- non-root runtime user;
-- port `8080`;
-- no embedded secrets.
-
-Do not add MongoDB into the API image.
-
-Do not build hosting-provider-specific orchestration in Stage 5.
-
----
-
-# 29. Documentation
-
-Update README from Stage 4 to Stage 5.
-
-Document:
-
-- `GET /api/home`;
-- Home response purpose;
-- frontend call sequence;
-- aligned deterministic demo leaderboard;
-- `DemoData__ResetRunsOnStartup`;
-- default `false`;
-- warning that enabling it deletes only demo-user runs on API startup;
-- CORS configuration;
-- Stage 5 smoke command;
-- deterministic demo narrative.
-
-Recommended frontend call sequence:
-
-```text
-POST /api/auth/login
-GET  /api/home
-
-# dedicated screens / lazy loading
-GET /api/map/activity
+```http
 GET /api/leaderboards/today
 GET /api/leaderboards/month
+GET /api/rivals/current
+```
+
+## Personal Progress
+
+Use:
+
+```http
 GET /api/progress
 GET /api/runs/history
 ```
 
-During run:
+---
 
-```text
-POST  /api/runs
-PATCH /api/runs/{runId}/progress
-POST  /api/runs/{runId}/finish
-GET   /api/home
+# 9. Live Run Frontend Contract
+
+Document the complete client run lifecycle.
+
+## Start
+
+```http
+POST /api/runs
 ```
 
-Do not rewrite unrelated README sections.
+Expected:
+
+```text
+201 when created
+409 if an active run already exists
+```
+
+If `409` occurs, the client should refresh Home or `GET /api/runs/active` instead of creating another run.
+
+## Progress
+
+```http
+PATCH /api/runs/{runId}/progress
+Content-Type: application/json
+```
+
+Example conceptual body:
+
+```json
+{
+  "distanceMeters": 1300,
+  "durationSeconds": 390
+}
+```
+
+The frontend must send:
+
+```text
+non-negative
+non-decreasing
+distance and duration
+```
+
+The backend remains authoritative for:
+
+```text
+overtake creation
+points
+rank change
+next run target
+```
+
+The frontend must not calculate or persist its own authoritative overtake state.
+
+## Finish
+
+```http
+POST /api/runs/{runId}/finish
+```
+
+The frontend should render the returned post-run summary, then refresh:
+
+```http
+GET /api/home
+```
+
+to obtain the next rival goal.
 
 ---
 
-# 30. Explicit Non-Goals
+# 10. Demo Progress Driver Boundary
 
-Do not implement during Stage 5:
+The current backend does not ingest real GPS tracks.
 
-- frontend/mobile code;
-- React / React Native / Flutter integration;
-- frontend project scaffolding;
-- real production deployment;
-- hosting-provider-specific setup;
-- CI/CD;
-- JWT;
-- ASP.NET Identity;
-- OAuth;
-- real multi-user authentication;
-- roles/permissions;
-- friends;
-- persisted rivals;
-- notifications;
-- SignalR;
-- WebSockets;
+For the hackathon UI, run progress may come from:
+
+```text
+a frontend demo simulator
+or
+a future real sensor/GPS source
+```
+
+Both must use the same API:
+
+```http
+PATCH /api/runs/{runId}/progress
+```
+
+Do not add a backend timer that automatically invents run distance.
+
+Do not add a public endpoint such as:
+
+```text
+/api/demo/advance
+/api/demo/simulate
+```
+
+The backend contract must remain compatible with a future real activity source.
+
+The demo simulator belongs in the frontend/integration layer.
+
+---
+
+# 11. Client Refresh Strategy
+
+Document a minimal client strategy.
+
+Recommended MVP behavior:
+
+```text
+App entry / screen resume
+→ GET /api/home
+
+Start run
+→ POST /api/runs
+
+During run
+→ frontend submits progress
+→ render competition state from progress response
+
+After finish
+→ POST finish
+→ render summary
+→ GET /api/home
+```
+
+Do not require aggressive polling.
+
+Do not add WebSockets or SignalR for this MVP.
+
+Dedicated screens may lazy-load their own data.
+
+---
+
+# 12. Client Error/Recovery Contract
+
+Document frontend behavior for common statuses.
+
+## 400
+
+Use for malformed input / validation failure.
+
+Frontend behavior:
+
+```text
+show a friendly validation error
+do not retry automatically with identical payload
+```
+
+## 401
+
+Demo login failed.
+
+Frontend behavior:
+
+```text
+show generic invalid-credentials state
+```
+
+## 404
+
+Examples:
+
+```text
+run not found
+GET /api/runs/active while idle
+```
+
+For active-run discovery, the frontend should normally prefer `/api/home`, where idle is represented as `activeRun: null`.
+
+## 409
+
+Examples:
+
+```text
+active run already exists
+completed run cannot be modified
+concurrent conflicting write
+```
+
+Frontend behavior should refresh authoritative state before retrying.
+
+## 500 / 503
+
+Treat as temporary backend/service failure.
+
+Frontend should offer retry rather than inventing local authoritative game state.
+
+---
+
+# 13. API Base URL Contract
+
+The frontend base URL must be external configuration.
+
+Examples:
+
+```text
+local:
+http://localhost:5092
+
+docker local:
+http://localhost:8080
+
+deployed:
+https://<deployed-api-host>
+```
+
+Do not hard-code the production URL into backend source code.
+
+Do not invent a hosting vendor URL.
+
+The handoff doc should instruct the frontend to use a single environment/config value such as:
+
+```text
+API_BASE_URL
+```
+
+The exact frontend environment-variable mechanism depends on the frontend framework and is outside this repository.
+
+---
+
+# 14. Local MVP Demo Compose
+
+Add:
+
+```text
+docker-compose.demo.yml
+```
+
+Purpose:
+
+```text
+one-command local fallback demo
+```
+
+It should run:
+
+```text
+MongoDB
++
+CitySurfers API
+```
+
+without requiring a separately installed/local Atlas connection.
+
+The API service must:
+
+- build from the existing repository `Dockerfile`;
+- run in `Production`;
+- connect to the Compose Mongo service;
+- use a dedicated demo database;
+- seed demo data;
+- enable `ResetRunsOnStartup=true` for deterministic startup;
+- expose the API on localhost port `8080`;
+- configure a documented local frontend origin where needed;
+- depend on Mongo health/readiness appropriately.
+
+The Mongo service should:
+
+- use an official stable MongoDB image;
+- expose no credentials in source control;
+- be isolated to the demo compose network;
+- use an ephemeral or clearly demo-only data lifecycle;
+- include a health check.
+
+For the hackathon fallback, repeatability is more important than preserving demo history.
+
+Do not modify the normal production Dockerfile to embed MongoDB.
+
+---
+
+# 15. Demo Compose Commands
+
+Document:
+
+```bash
+docker compose -f docker-compose.demo.yml up --build
+```
+
+and:
+
+```bash
+docker compose -f docker-compose.demo.yml down -v
+```
+
+Expected URLs:
+
+```text
+API:
+http://localhost:8080
+
+Liveness:
+http://localhost:8080/health
+
+Readiness:
+http://localhost:8080/health/ready
+```
+
+The compose setup must be suitable as an offline/local fallback if the remote demo environment is unavailable.
+
+---
+
+# 16. Compose Security Rules
+
+Do not commit:
+
+- MongoDB cloud credentials;
+- API secrets;
+- `.env`;
+- frontend secrets.
+
+Local Compose may use non-sensitive local-only Mongo connection values.
+
+If authentication is configured for the local Mongo container, use demo-only local credentials and document that they are not production credentials.
+
+Do not make the Compose file the production deployment architecture.
+
+It is a local MVP demo fallback.
+
+---
+
+# 17. Production-Mode Release Smoke
+
+Add:
+
+```text
+tests/Stage6.ReleaseSmoke.ps1
+```
+
+This is a local release-candidate validation.
+
+It must:
+
+1. build the actual repository Dockerfile;
+2. run MongoDB in an isolated temporary environment or reuse a clearly isolated test Mongo;
+3. run the API with:
+
+```text
+ASPNETCORE_ENVIRONMENT=Production
+```
+
+4. enable deterministic demo reset;
+5. configure a test frontend CORS origin;
+6. verify liveness;
+7. verify readiness;
+8. verify that Production does **not** expose `/openapi/v1.json`;
+9. verify login;
+10. verify clean Home state;
+11. run the complete four-overtake demo flow;
+12. verify the `#41 → #37` transition;
+13. verify the 59-point finish;
+14. verify the 6-point rival goal;
+15. verify history/progress;
+16. verify allowed CORS origin;
+17. verify a disallowed CORS origin;
+18. verify preflight;
+19. verify no unexpected Mongo collections;
+20. clean up every resource created by the script even after failure.
+
+Prefer reuse of existing Stage 5 smoke helpers/patterns rather than duplicating large amounts of PowerShell.
+
+Do not weaken the existing Stage 5 smoke.
+
+---
+
+# 18. Remote Deployment Smoke
+
+Add:
+
+```text
+tests/Stage6.RemoteSmoke.ps1
+```
+
+Purpose:
+
+```text
+verify an already deployed API using only its public base URL
+```
+
+Required parameter:
+
+```text
+-BaseUrl
+```
+
+Optional:
+
+```text
+-FrontendOrigin
+-FullDemo
+```
+
+## Default Safe Remote Check
+
+Without `-FullDemo`, verify only non-destructive/read-oriented behavior:
+
+```text
+GET /health
+GET /health/ready
+POST /api/auth/login
+GET /api/home
+GET /api/leaderboards/today
+GET /api/leaderboards/month
+GET /api/map/activity?period=today
+GET /api/progress
+GET /api/runs/history
+```
+
+If `-FrontendOrigin` is supplied:
+
+- verify CORS allow-origin behavior;
+- verify preflight.
+
+The remote smoke must not require:
+
+- MongoDB connection string;
+- database credentials;
+- Docker access to the deployment host;
+- cloud-provider CLI.
+
+## Full Demo Mode
+
+When explicitly passed:
+
+```text
+-FullDemo
+```
+
+the script may execute the run mutation flow.
+
+Before doing so, it must clearly print that this modifies the demo user's run state.
+
+Do not make destructive/mutating behavior the default.
+
+---
+
+# 19. Remote Smoke Behavior
+
+The remote smoke script must:
+
+- normalize trailing slash in base URL;
+- use HTTPS or HTTP as supplied;
+- fail with non-zero exit code on contract mismatch;
+- print a concise step/result summary;
+- avoid printing sensitive headers or secrets;
+- handle expected HTTP status codes explicitly;
+- set reasonable request timeouts;
+- never assume direct Mongo access.
+
+Do not hard-code a deployed URL.
+
+---
+
+# 20. Frontend Contract Integration Tests
+
+Add or extend API integration tests to protect the MVP frontend contract.
+
+Create a focused test class such as:
+
+```text
+MvpFrontendContractApiTests
+```
+
+It should exercise the main integration sequence using existing in-memory/replacement infrastructure.
+
+Minimum checks:
+
+## Bootstrap
+
+```text
+login
+→ home
+```
+
+Verify important JSON fields exist with expected names.
+
+## Run
+
+```text
+start
+→ progress
+→ overtake
+→ finish
+→ home
+```
+
+Verify:
+
+- run id remains stable;
+- distance/duration fields remain stable;
+- competition/goal fields use existing names;
+- finish response remains usable as post-run summary;
+- Home after finish returns rival goal.
+
+## Dedicated screens
+
+Verify successful contracts remain available for:
+
+```text
+today leaderboard
+month leaderboard
+progress
+history
+activity map
+rival
+next goal
+```
+
+Do not duplicate every service unit test.
+
+This test protects the frontend-facing sequence and JSON contract.
+
+---
+
+# 21. Contract Freeze Rule
+
+After Stage 6, successful MVP API contracts are frozen for the hackathon.
+
+Future fixes may:
+
+- add optional fields;
+- fix genuine defects;
+- add new endpoints.
+
+They should not casually:
+
+- rename existing JSON properties;
+- remove fields;
+- change route paths;
+- change normal success status codes;
+- reinterpret the meaning of existing fields.
+
+Document this in the frontend handoff.
+
+This is a release discipline rule, not formal semantic API versioning.
+
+Do not add `/v1` routing in this stage.
+
+---
+
+# 22. CI Workflow
+
+Add:
+
+```text
+.github/workflows/backend-ci.yml
+```
+
+The workflow should run for:
+
+```text
+push
+pull_request
+```
+
+on the relevant backend branches, including `main`.
+
+Minimum CI steps:
+
+```text
+checkout
+setup .NET 10
+restore
+build Release
+test Release
+```
+
+CI must:
+
+- use no MongoDB cloud secrets;
+- rely on existing unit/integration replacement infrastructure;
+- fail on build/test failures;
+- avoid publishing artifacts/secrets by default.
+
+A Docker build validation step is desirable if reliable in GitHub-hosted runners.
+
+If Docker registry/base-image network instability would make CI unnecessarily flaky, keep the mandatory CI gate to restore/build/test and document Docker release validation separately through Stage 6 smoke.
+
+Do not create a cloud deployment pipeline yet.
+
+---
+
+# 23. CI Scope
+
+Do not add:
+
+- automatic cloud deployment;
+- production credentials;
+- MongoDB Atlas credentials;
+- GHCR publishing unless already required by the repository;
+- environment approval workflows;
+- release tagging automation.
+
+This is a hackathon MVP CI safety net, not a full enterprise pipeline.
+
+---
+
+# 24. Production Configuration Runbook
+
+Add a deployment section to:
+
+```text
+docs/MVP_FRONTEND_HANDOFF.md
+```
+
+or a focused:
+
+```text
+docs/MVP_DEPLOYMENT.md
+```
+
+If the handoff document becomes too large, use `MVP_DEPLOYMENT.md`.
+
+Document required deployment environment variables:
+
+```text
+ASPNETCORE_ENVIRONMENT=Production
+
+MongoDb__ConnectionString=<secret>
+MongoDb__DatabaseName=<database>
+
+DemoData__SeedOnStartup=true
+DemoData__ResetRunsOnStartup=<true for deterministic hackathon restart OR false for persistence>
+
+Cors__AllowedOrigins__0=<frontend-origin>
+
+ASPNETCORE_HTTP_PORTS=8080
+```
+
+Clarify:
+
+- Mongo connection string is a secret;
+- database name is configurable;
+- reset flag intentionally deletes demo-user run history on startup;
+- CORS origin must be the actual browser frontend origin;
+- native mobile clients are not governed by browser CORS in the same way;
+- provider TLS/HTTPS termination may happen outside the ASP.NET container;
+- `/health/ready` should be used for readiness where the hosting platform supports it.
+
+Do not invent provider-specific environment variable names.
+
+---
+
+# 25. Deployment Provider Boundary
+
+Do not choose:
+
+- Render;
+- Railway;
+- Fly.io;
+- Azure;
+- AWS;
+- GCP;
+- DigitalOcean;
+- another vendor.
+
+No provider has been selected by the project context.
+
+Stage 6 prepares a standard Dockerized release candidate that can be deployed to any platform supporting:
+
+```text
+Docker container
+environment variables
+outbound MongoDB connectivity
+HTTPS/public routing
+```
+
+Actual provider setup requires provider credentials and is outside source-code execution unless explicitly supplied later.
+
+---
+
+# 26. MongoDB Deployment Notes
+
+Document that the deployed API requires:
+
+```text
+MongoDB reachable from hosting provider
+```
+
+For Atlas-like deployments:
+
+- network access must permit the hosting environment;
+- DB user must have required read/write/index permissions;
+- connection string stays outside source control.
+
+Do not add Atlas SDKs.
+
+Do not modify persistence architecture.
+
+Do not hard-code cloud Mongo addresses.
+
+---
+
+# 27. OpenAPI Handoff
+
+Development OpenAPI currently exists at:
+
+```text
+/openapi/v1.json
+```
+
+and Production intentionally does not expose it.
+
+Preserve this.
+
+For frontend handoff, document how a developer can obtain the schema locally:
+
+```bash
+dotnet run --project src/CitySurfers.Api
+```
+
+then:
+
+```text
+http://localhost:5092/openapi/v1.json
+```
+
+Do not expose Production OpenAPI merely to simplify frontend development.
+
+If a committed contract snapshot is added, it must be generated from the real API and clearly documented as a snapshot.
+
+A committed snapshot is optional; do not add snapshot machinery if it creates brittle or complicated maintenance.
+
+---
+
+# 28. README Stage 6 Update
+
+Update README from:
+
+```text
+Stage 5 backend
+```
+
+to a Stage 6 / MVP demo release candidate description.
+
+Add concise sections for:
+
+- frontend handoff doc;
+- local demo Compose;
+- release smoke;
+- remote smoke;
+- CI;
+- deployment environment variables;
+- contract freeze;
+- next step: frontend integration.
+
+Keep existing technical Stage 1–5 details that are still useful.
+
+Do not rewrite the README into marketing copy.
+
+---
+
+# 29. No New Product Features
+
+Do not implement in Stage 6:
+
 - routes;
-- route rankings;
+- route ranking;
 - King of Route;
-- GPS ingestion;
-- live individual coordinates;
-- external map services;
-- Strava/Garmin;
 - AI Coach;
 - Game Rating;
-- races/matchmaking;
-- achievements/levels;
-- anti-cheat engine;
+- real seasons;
+- real rival persistence;
+- races;
+- matchmaking;
+- friends;
+- notifications;
+- achievements;
+- levels;
+- GPS track persistence;
+- exact individual map location;
+- external map APIs;
+- Strava/Garmin imports;
+- real multi-user accounts;
+- JWT;
+- OAuth;
+- refresh tokens;
+- SignalR;
+- WebSockets;
 - Redis;
-- caching;
-- queues/background workers;
+- background jobs;
+- message queues;
+- microservices;
 - new database technology;
-- new Mongo collections;
-- API versioning;
-- GraphQL;
-- microservices.
+- new Mongo collections.
+
+Stage 6 is a release stage.
 
 ---
 
-# 31. Architectural Guardrails
+# 30. Authentication MVP Boundary
 
-Keep responsibilities separate:
+Do not replace demo authentication in this stage.
 
-```text
-RunSession
-    = one-run lifecycle
-
-IRunCompetitionProvider
-    = active-run deterministic competition
-
-LeaderboardService
-    = real current-user score aggregation + standings orchestration
-
-ILeaderboardProvider
-    = replaceable demo competitor population
-
-RivalService
-    = derive monthly rival
-
-NextGoalService
-    = choose one primary motivational goal
-
-HomeService
-    = compose minimal frontend home state
-
-DemoDataSeeder / demo initialization
-    = initialize/reset demo persistence when explicitly configured
-```
-
-Do not create god services such as:
+Current demo behavior is deliberate:
 
 ```text
-GameService
-AppService
-MegaDashboardService
+POST /api/auth/login
+→ demo validation
+→ no token/session
+→ server-side demo-user resolution for subsequent calls
 ```
 
-Do not put:
+This is not production authentication.
 
-- Mongo code in Application;
-- reset logic in controllers;
-- leaderboard math in Home;
-- goal priority logic in Home;
-- scoring logic in Home;
-- frontend sentences in Application.
+The frontend handoff must explicitly state this limitation.
+
+Do not pretend the deployed hackathon demo is production-ready for real users.
+
+Real authentication belongs after the hackathon MVP or in a separately approved stage.
 
 ---
 
-# 32. Implementation Tasks
+# 31. Security Guardrails
+
+Preserve:
+
+- sanitized errors;
+- no Mongo credentials in logs;
+- no secrets in repository;
+- CORS allowlist behavior;
+- no wildcard Production CORS;
+- non-root container;
+- Development-only OpenAPI.
+
+Review newly added scripts/docs for accidental secrets.
+
+Do not log:
+
+- Mongo connection strings;
+- passwords;
+- full environment dumps.
+
+Do not add demo-reset HTTP endpoints.
+
+---
+
+# 32. Observability Scope
+
+Existing console logging and health endpoints are sufficient for the MVP.
+
+Do not add:
+
+- Serilog stack;
+- OpenTelemetry;
+- distributed tracing backend;
+- metrics server;
+- external logging SaaS.
+
+If Stage 6 tests expose a specific missing diagnostic, make the smallest targeted change.
+
+Do not build a new observability platform.
+
+---
+
+# 33. Test Strategy
+
+Stage 6 should add tests only for new release/integration guarantees.
+
+Required validation categories:
+
+```text
+existing unit/integration suite
+frontend contract integration flow
+local production-mode release smoke
+remote smoke script logic where practical
+CI syntax/behavior through actual workflow structure
+Docker build
+```
+
+Do not duplicate all 161 existing tests.
+
+---
+
+# 34. Regression Requirements
+
+Run the full automated suite.
+
+Verify no regressions in:
+
+- health;
+- readiness;
+- login;
+- Home;
+- run creation;
+- active run;
+- progress;
+- finish;
+- run concurrency;
+- overtakes;
+- post-run summary;
+- history;
+- progress aggregates;
+- today leaderboard;
+- monthly leaderboard;
+- rival;
+- next goal;
+- map;
+- CORS;
+- reset configuration;
+- OpenAPI Development behavior;
+- Production no-OpenAPI behavior.
+
+Do not weaken existing tests.
+
+---
+
+# 35. Stage 6 Demo Acceptance Flow
+
+A team member should be able to perform:
+
+```text
+docker compose -f docker-compose.demo.yml up --build
+```
+
+Then from a frontend or HTTP client:
+
+```text
+POST /api/auth/login
+GET /api/home
+
+POST /api/runs
+PATCH progress → first overtake
+PATCH progress → second overtake
+PATCH progress → third overtake
+PATCH progress → fourth overtake
+POST finish
+
+GET /api/home
+GET /api/leaderboards/today
+GET /api/leaderboards/month
+GET /api/progress
+GET /api/runs/history
+GET /api/map/activity?period=today
+```
+
+Expected narrative remains:
+
+```text
+#41
+→ #40
+→ #39
+→ #38
+→ #37
+→ +59 points
+→ next rival #36
+→ 6 points to pass
+```
+
+---
+
+# 36. Implementation Tasks
 
 ## Task 1 — Baseline
 
 - [x] Read `AGENT.md`.
 - [x] Read this `PLAN.md`.
 - [x] Do not perform repository-wide analysis.
-- [x] Run the current full automated suite.
-- [x] Confirm Stage 4 baseline is green.
+- [x] Run the existing full automated test suite.
+- [x] Confirm Stage 5 baseline is green.
 
-## Task 2 — Align Demo Monthly Leaderboard
+## Task 2 — Frontend Handoff Document
 
-- [x] Update only demo competitor population.
-- [x] Preserve real current-user point aggregation.
-- [x] Make Month use the aligned MVP point ladder.
-- [x] Preserve sorting semantics.
-- [x] Verify `0 → #41`.
-- [x] Verify `16 → #40`.
-- [x] Verify `30 → #39`.
-- [x] Verify `41 → #38`.
-- [x] Verify `59 → #37`.
+- [x] Add `docs/MVP_FRONTEND_HANDOFF.md`.
+- [x] Document API base URL configuration.
+- [x] Document screen-to-endpoint mapping.
+- [x] Document login limitation.
+- [x] Document Home bootstrap.
+- [x] Document run lifecycle.
+- [x] Document progress payload rules.
+- [x] Document error/recovery behavior.
+- [x] Document activity-map privacy semantics.
+- [x] Document contract freeze rule.
+- [x] Do not describe unimplemented features as available.
 
-## Task 3 — Verify Rival Showcase State
+## Task 3 — Local Demo Compose
 
-- [x] Verify 59 monthly points → #37.
-- [x] Verify rival → #36.
-- [x] Verify rival points → 64.
-- [x] Verify gap → 5.
-- [x] Verify points-to-pass → 6.
-- [x] Preserve Stage 4 rival algorithm.
+- [x] Add `docker-compose.demo.yml`.
+- [x] Run API from existing Dockerfile.
+- [x] Run MongoDB as a separate service.
+- [x] Use a dedicated demo database.
+- [x] Run API in Production mode.
+- [x] Enable seed + reset for deterministic startup.
+- [x] Add Mongo health check.
+- [x] Add API dependency/readiness behavior.
+- [x] Expose API on `localhost:8080`.
+- [x] Keep production Dockerfile single-service.
 
-## Task 4 — Home Models
+## Task 4 — Frontend Contract Integration Test
 
-- [x] Add focused Home models.
-- [x] Reuse existing current-user rank model where appropriate.
-- [x] Reuse existing `NextGoal`.
-- [x] Add nullable compact active-run summary.
+- [x] Add focused MVP frontend-flow API integration coverage.
+- [x] Verify login → Home.
+- [x] Verify start → progress → overtake.
+- [x] Verify finish → Home fallback.
+- [x] Verify dedicated screen endpoints.
+- [x] Verify important JSON field names.
+- [x] Avoid duplicating service unit tests.
 
-## Task 5 — HomeService
+## Task 5 — Production-Mode Release Smoke
 
-- [x] Add `HomeService`.
-- [x] Reuse current-user accessor.
-- [x] Reuse run store.
-- [x] Reuse leaderboard service.
-- [x] Reuse next-goal service.
-- [x] Treat no active run as normal.
-- [x] Add focused tests.
+- [x] Add `tests/Stage6.ReleaseSmoke.ps1`.
+- [x] Build actual Dockerfile.
+- [x] Run API as Production.
+- [x] Use isolated Mongo test state.
+- [x] Verify `/health`.
+- [x] Verify `/health/ready`.
+- [x] Verify Production OpenAPI is unavailable.
+- [x] Verify clean Home.
+- [x] Verify full four-overtake flow.
+- [x] Verify 59 points and #37.
+- [x] Verify 6-point rival.
+- [x] Verify CORS.
+- [x] Verify history/progress.
+- [x] Verify collections unchanged.
+- [x] Guarantee cleanup on failure.
 
-## Task 6 — Home API
+## Task 6 — Remote Smoke
 
-- [x] Add `GET /api/home`.
-- [x] Keep controller thin.
-- [x] Return `200` when idle.
-- [x] Add API integration tests.
-- [x] Verify JSON contract.
+- [x] Add `tests/Stage6.RemoteSmoke.ps1`.
+- [x] Require `-BaseUrl`.
+- [x] Add optional `-FrontendOrigin`.
+- [x] Add optional `-FullDemo`.
+- [x] Keep default mode non-destructive.
+- [x] Verify health/readiness.
+- [x] Verify login/Home/read endpoints.
+- [x] Verify optional CORS.
+- [x] Fail loudly on contract mismatch.
+- [x] Never require DB credentials.
+- [x] Never hard-code deployment URL.
 
-## Task 7 — Demo Reset
+## Task 7 — CI
 
-- [x] Add `ResetRunsOnStartup`.
-- [x] Default to false.
-- [x] Add options validation.
-- [x] Reject reset=true + seed=false.
-- [x] Delete only demo-user runs.
-- [x] Preserve users/indexes/unrelated data.
-- [x] Add `.env.example` entry.
+- [x] Add `.github/workflows/backend-ci.yml`.
+- [x] Run on push.
+- [x] Run on pull requests.
+- [x] Setup .NET 10.
+- [x] Restore.
+- [x] Build Release.
+- [x] Test Release.
+- [x] Use no cloud/Mongo secrets.
+- [x] Keep cloud deployment out of this workflow.
 
-## Task 8 — CORS Tests
+## Task 8 — Deployment Runbook
 
-- [x] Test allowed origin.
-- [x] Test disallowed origin.
-- [x] Test preflight.
-- [x] Preserve no-credentials policy.
-- [x] Do not add wildcard Production CORS.
+- [x] Add deployment requirements to handoff or focused deployment doc.
+- [x] Document required environment variables.
+- [x] Document Mongo connectivity requirements.
+- [x] Document CORS frontend origin.
+- [x] Document reset-on-start behavior.
+- [x] Document readiness endpoint.
+- [x] Document TLS termination expectation.
+- [x] Keep provider-neutral.
 
-## Task 9 — API Manual Contract File
+## Task 9 — OpenAPI / Contract Verification
 
-- [x] Expand `CitySurfers.Api.http`.
-- [x] Cover full MVP flow.
-- [x] Add Home request.
+- [x] Verify Development exposes OpenAPI.
+- [x] Verify Production does not.
+- [x] Verify Stage 6 did not alter existing route paths.
+- [x] Verify successful response property names required by frontend remain stable.
+- [x] Do not introduce API version routing.
 
-## Task 10 — OpenAPI + Regression
+## Task 10 — Full Regression
 
 - [x] Build solution.
-- [x] Run full test suite.
-- [x] Verify Stages 1–4 remain green.
-- [x] Verify Stage 5.
-- [x] Verify OpenAPI contains Home.
-- [x] Verify existing paths remain intact.
+- [x] Run all automated tests.
+- [x] Verify Stages 1–5.
+- [x] Verify Stage 6 tests.
+- [x] Build Docker image.
+- [x] Run Stage 5 Mongo smoke if practical/relevant.
+- [x] Run Stage 6 Release smoke.
+- [x] Run local demo Compose flow.
 
-## Task 11 — Real Mongo / Docker Smoke
+## Task 11 — Documentation
 
-- [x] Build Stage 5 image.
-- [x] Add `Stage5.MongoSmoke.ps1`.
-- [x] Verify clean reset state.
-- [x] Verify Home idle state.
-- [x] Verify CORS/preflight.
-- [x] Verify run Home state.
-- [x] Verify `41→40→39→38→37` progression.
-- [x] Verify 59-point finish.
-- [x] Verify 6-point rival goal.
-- [x] Verify persistence with reset=false.
-- [x] Verify reset with reset=true.
-- [x] Verify no new collections.
-
-## Task 12 — Documentation
-
-- [x] Update README to Stage 5.
-- [x] Document Home.
-- [x] Document frontend call sequence.
-- [x] Document demo leaderboard alignment.
-- [x] Document reset option/warning.
-- [x] Document CORS.
-- [x] Document smoke flow.
+- [x] Update README to Stage 6 / MVP demo release candidate.
+- [x] Link frontend handoff.
+- [x] Document Compose demo start/stop.
+- [x] Document release smoke.
+- [x] Document remote smoke.
+- [x] Document CI.
+- [x] Document deployment boundary.
+- [x] State that backend Core MVP feature work is frozen for the hackathon.
 
 ---
 
-# 33. Acceptance Criteria
+# 37. Acceptance Criteria
 
-Stage 5 is complete only when:
+Stage 6 is complete only when:
 
 - [x] Stage 1 behavior still works.
 - [x] Stage 2 behavior still works.
 - [x] Stage 3 behavior still works.
 - [x] Stage 4 behavior still works.
+- [x] Stage 5 behavior still works.
 - [x] Full automated suite passes.
-- [x] Existing endpoint paths are preserved.
-- [x] `GET /api/home` exists.
-- [x] Home returns `200` while idle.
-- [x] Home returns today's real current-user rank/points.
-- [x] Home returns nullable active run.
-- [x] Home returns the existing primary next goal.
-- [x] Home does not duplicate leaderboard logic.
-- [x] Home does not duplicate next-goal logic.
-- [x] Home remains a small bootstrap endpoint.
-- [x] Demo Month uses the aligned point ladder.
-- [x] `0 → #41`.
-- [x] `16 → #40`.
-- [x] `30 → #39`.
-- [x] `41 → #38`.
-- [x] `59 → #37`.
-- [x] At 59 monthly points rival is #36 at 64 points.
-- [x] `pointsGap = 5`.
-- [x] `pointsToPass = 6`.
-- [x] Real user scoring is unchanged.
-- [x] Overtake rewards are unchanged.
-- [x] Target distances are unchanged.
-- [x] `DemoData__ResetRunsOnStartup` exists.
-- [x] Reset defaults false.
-- [x] Invalid reset/seed combination is rejected.
-- [x] Reset deletes only demo-user runs.
-- [x] Reset preserves demo user and unrelated data.
-- [x] No public reset endpoint exists.
-- [x] Allowed-origin CORS is tested.
-- [x] Disallowed-origin CORS is tested.
-- [x] Preflight is tested.
-- [x] No Production wildcard origin is added.
-- [x] `CitySurfers.Api.http` covers the demo flow.
-- [x] OpenAPI includes Home.
-- [x] Docker image builds.
-- [x] Real Mongo Stage 5 smoke passes.
-- [x] Smoke proves deterministic fresh state.
-- [x] Smoke proves full one-run loop.
-- [x] Smoke proves persistence when reset is off.
-- [x] Smoke proves intentional reset when enabled.
-- [x] No new Mongo collections are introduced.
-- [x] README documents frontend-ready behavior.
+- [x] No existing MVP route is removed or renamed.
+- [x] No successful MVP JSON contract is broken.
+- [x] `docs/MVP_FRONTEND_HANDOFF.md` exists.
+- [x] Handoff accurately maps frontend screens to real endpoints.
+- [x] Handoff documents demo-auth limitation.
+- [x] Handoff documents monotonic progress requirements.
+- [x] Handoff documents common error recovery.
+- [x] Handoff documents API base URL configuration.
+- [x] Handoff documents contract-freeze expectations.
+- [x] `docker-compose.demo.yml` exists.
+- [x] Demo Compose runs API + Mongo.
+- [x] API runs in Production mode in Compose.
+- [x] Demo Compose produces deterministic clean state.
+- [x] Demo Compose preserves the existing Dockerfile architecture.
+- [x] Frontend contract integration flow is covered automatically.
+- [x] `tests/Stage6.ReleaseSmoke.ps1` exists.
+- [x] Release smoke verifies Production OpenAPI is not exposed.
+- [x] Release smoke verifies full deterministic gameplay flow.
+- [x] Release smoke verifies CORS.
+- [x] Release smoke cleans up resources.
+- [x] `tests/Stage6.RemoteSmoke.ps1` exists.
+- [x] Remote smoke accepts arbitrary `-BaseUrl`.
+- [x] Remote smoke default mode is non-destructive.
+- [x] Full remote demo flow is opt-in.
+- [x] Remote smoke requires no Mongo credentials.
+- [x] `.github/workflows/backend-ci.yml` exists.
+- [x] CI restores/builds/tests .NET 10 solution.
+- [x] CI requires no production secrets.
+- [x] README documents Stage 6 release usage.
+- [x] Deployment runbook remains provider-neutral.
+- [x] No cloud credentials are committed.
+- [x] No new MongoDB collections are introduced.
+- [x] No new product module is introduced.
+- [x] Real user scoring logic is unchanged.
+- [x] Run rewards are unchanged.
+- [x] Rival logic is unchanged.
+- [x] NextGoal priority is unchanged.
+- [x] Activity-map privacy behavior is unchanged.
+- [x] Docker image still runs as non-root.
+- [x] Development OpenAPI still works.
+- [x] Production OpenAPI remains disabled.
+- [x] Local fallback demo can be launched with one command.
+- [x] Backend is ready for direct frontend integration.
 
 ---
 
-# 34. Definition of Stage 5 Success
+# 38. Definition of Stage 6 Success
 
-After Stage 5, backend feature development for the hackathon MVP should stop.
+Stage 6 succeeds when the backend can be handed to a frontend developer with no repository archaeology required.
 
-The frontend should be able to implement the core demo with:
-
-```text
-login
-→ home
-→ start run
-→ progress
-→ overtake feedback
-→ finish
-→ home / next rival
-→ ranking / map / progress screens
-```
-
-The backend should support a repeatable presentation:
+The frontend developer should need only:
 
 ```text
-fresh #41
-→ overtake targets
-→ #37
-→ ~6 points to next rival
+1. API_BASE_URL
+2. docs/MVP_FRONTEND_HANDOFF.md
+3. the documented API sequence
 ```
 
-without changing real user scoring logic.
+The backend team should be able to verify a remote deployment with:
+
+```powershell
+pwsh -NoProfile -File tests/Stage6.RemoteSmoke.ps1 `
+  -BaseUrl https://your-api-host
+```
+
+And a hackathon fallback should be launchable locally with:
+
+```bash
+docker compose -f docker-compose.demo.yml up --build
+```
+
+At this point:
+
+```text
+backend MVP feature development stops
+→ frontend connects to API
+→ deploy container
+→ run RemoteSmoke
+→ polish demo
+```
 
 ---
 
-# 35. Stage 6 — Do Not Implement Yet
+# 39. What Comes After Stage 6
 
-Do not start Stage 6 during this plan.
+Do not implement this section during Stage 6.
 
-After Stage 5, the next work should focus on:
+The next work is no longer another backend feature stage.
+
+It should be:
 
 ```text
-Frontend integration
+Frontend implementation/integration
 +
-actual hosting/deployment
+real hosting-provider deployment
 +
-end-to-end deployed smoke
+deployed end-to-end verification
 +
-hackathon demo polish
+hackathon presentation polish
 ```
 
-Do not add more backend product modules before frontend integration unless a concrete frontend blocker is discovered.
+If frontend integration discovers a concrete backend blocker, fix that blocker with the smallest backward-compatible change.
 
-# Stage 5 Completion Evidence
+Do not resume speculative backend feature development before the MVP demo.
 
-- Solution build passed with zero warnings and errors.
-- Full automated regression suite passed: 96 unit tests and 65 integration tests (161 total).
-- Home tests cover idle, active metrics/goal, finished monthly fallback, null goal and compact JSON.
-- Demo leaderboard tests verify both periods at 0/16/30/41/59 points; the rival integration test
-  verifies rank #37, rival #36 at 64 points, gap 5 and points-to-pass 6 after a persisted demo run.
-- CORS integration tests passed for allowed/disallowed origins and mutation preflight without credentials.
-- OpenAPI validation passed for Home's 200 schema, its models, and all existing Stage 1–4 paths.
-- Docker image citysurfers-api:stage5 built successfully; runtime user 1654 and port 8080 verified.
-  Registry tag lookup returned EOF. As in Stage 4, an ignored .local/Stage5.validation.Dockerfile
-  substituted only the cached .NET 10 SDK/runtime digests; the repository Dockerfile remains unchanged.
-- Stage5.MongoSmoke.ps1 passed against real local MongoDB: clean Home, all four daily/monthly rank
-  transitions, 59-point finish, 6-point rival, history/progress, CORS and OpenAPI, persistence with
-  reset=false and deletion with reset=true. A pre-existing demo id was resolved; unrelated users,
-  active/completed runs, user documents and indexes survived. Collections remained runs/users.
-  The smoke-created database and API container were removed; developer data was not modified.
-- README and the manual HTTP contract file document the complete frontend/demo flow.
-- No Stage 6 work was implemented.
+## Stage 6 execution evidence — 2026-10-03
 
-Deviation: Docker validation pinned cached base-image digests in an ignored validation copy after
-registry tag lookup failed with EOF. No application or architectural deviations.
+- Baseline: `dotnet test` — 161 passed (96 unit, 65 integration).
+- Final: `dotnet build CitySurfers.sln -c Release --no-restore` — zero warnings/errors; `dotnet test CitySurfers.sln -c Release --no-build --no-restore` — 162 passed (96 unit, 66 integration).
+- Focused `MvpFrontendContractApiTests` passed; existing Development schema/path tests and Production OpenAPI absence passed. No API/Application/Domain/Infrastructure source was changed.
+- Actual Dockerfile build and `Stage6.ReleaseSmoke.ps1` passed: isolated Production API/Mongo, health/readiness, OpenAPI 404, allow/deny/preflight CORS, four overtakes, 59 points/rank 37, six-point rival, history/progress, only runs/users, non-root runtime.
+- Release cleanup passed on success and intentionally occupied-port failure, including a container partially created by failed docker run. All temporary containers/networks/volumes were removed.
+- Demo Compose config/build/start passed using a separate validation project; remote FullDemo completed against localhost:8080. API restart restored rank 41/zero points/idle. Validation Compose resources were removed with down -v.
+- Remote smoke default preserved Home exactly; trailing slashes, configured CORS and opt-in FullDemo passed. Dirty-state FullDemo and disallowed-origin checks returned non-zero. No DB credentials were used.
+- Existing Stage5.MongoSmoke.ps1 passed against the Stage 6 image and its own temporary database; persistence/reset/isolation/index checks remained green.
+- PowerShell files parsed without errors. Workflow YAML parsed by the installed Compose YAML parser (expected rejection by Compose's service schema); GitHub workflow triggers, .NET 10 setup and restore/build/test steps reviewed. The equivalent Release build/test gate passed locally; hosted CI execution requires pushing the workflow.
+- Handoff fields were checked against controllers/contracts and the integration flow; README/document relative links checked. Credential-file ignore coverage preserves the existing local credential file after normalizing the docs directory casing; no credential content was read or committed.
+- Deviation: after repeated registry EOF failures resolving floating .NET 10 tags, the two existing Dockerfile base references were pinned to the official .NET 10 digests already used by Stage 5 local validation. The real Dockerfile then built successfully; multi-stage single-service/non-root architecture remains intact.
+- External boundary: no provider, credentials or public deployed API URL was supplied. Remote smoke was validated on local HTTP containers; actual hosted connectivity, TLS and browser frontend integration are not claimed. These are deployment/integration follow-ups already outside Stage 6 source-code execution.

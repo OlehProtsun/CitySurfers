@@ -1,0 +1,24 @@
+name: Backend CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore CitySurfers.sln
+      - name: Build Release
+        run: dotnet build CitySurfers.sln -c Release --no-restore
+      - name: Test Release
+        run: dotnet test CitySurfers.sln -c Release --no-build --no-restore

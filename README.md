@@ -1,7 +1,41 @@
-# CitySurfers — Stage 5 backend
+# CitySurfers — Stage 6 MVP demo release candidate
 
 .NET 10 modular monolith: API → Application/Infrastructure; Application → Domain.
 MongoDB-specific code stays in Infrastructure. Domain owns run state and lifecycle rules.
+
+## Frontend handoff and release
+
+Start with [MVP frontend handoff](docs/MVP_FRONTEND_HANDOFF.md): configure `API_BASE_URL`,
+follow login → Home → start/progress/finish → Home, and lazy-load dedicated screens.
+Demo login validates fictional credentials but issues no token/session; the server resolves a shared demo user.
+Backend Core MVP feature work and successful contracts are frozen for the hackathon.
+Keep routes, JSON field names, success statuses and meanings stable; compatible optional additions and defect fixes remain possible.
+The next step is frontend integration. No frontend framework or hosting provider is selected.
+
+One-command local fallback (API Production + private Mongo, seed/reset enabled):
+
+```sh
+docker compose -f docker-compose.demo.yml up --build
+# Stop and remove only the local demo data:
+docker compose -f docker-compose.demo.yml down -v
+```
+
+API is `http://localhost:8080`; readiness is `/health/ready`.
+Every API startup resets demo-user runs; the configured local browser origin is `http://localhost:5173`.
+See [MVP deployment runbook](docs/MVP_DEPLOYMENT.md) for environment variables, Mongo connectivity,
+CORS, TLS termination, reset/persistence choices and the provider-neutral deployment boundary.
+
+```powershell
+pwsh -NoProfile -File tests/Stage6.ReleaseSmoke.ps1
+pwsh -NoProfile -File tests/Stage6.RemoteSmoke.ps1 -BaseUrl https://your-api-host
+```
+
+Release smoke builds the actual Dockerfile and uses temporary isolated Mongo/Production API resources.
+Remote smoke needs only a public URL; default checks do not mutate runs.
+Optional `-FrontendOrigin` checks CORS; **`-FullDemo` explicitly modifies demo state** and requires a fresh dedicated demo.
+No remote Mongo credentials are required. Both scripts return non-zero on failure.
+CI in `.github/workflows/backend-ci.yml` restores, builds and tests Release on push/pull requests with .NET 10,
+without Mongo/cloud secrets or automated deployment. Docker release verification stays a separate smoke gate.
 
 ## Build and test
 
@@ -208,7 +242,12 @@ Before production, replace `DemoAuthService` and demo credential storage with re
 
 ## Validation status
 
-See `PLAN.md` for Stage 5 completion and acceptance criteria.
+See `PLAN.md` for Stage 6 completion and acceptance criteria.
+Stage 6 local validation passed: Release build with zero warnings/errors, 162 automated tests,
+frontend JSON-contract flow, actual Dockerfile build, Production release smoke, Stage 5 Mongo regression,
+Compose full demo/reset, remote smoke safe/full modes and failure-path cleanup.
+Development OpenAPI works; Production returns 404. Remote hosting connectivity and GitHub-hosted CI
+execution require the eventual deployed URL/pushed workflow and were not verified locally.
 Local MongoDB smoke checks verify persistence, restart idempotence, unique username enforcement, seeding configuration, and database outage behavior.
 These checks do not establish connectivity to your Atlas cluster.
 

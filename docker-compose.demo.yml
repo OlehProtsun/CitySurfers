@@ -1,0 +1,30 @@
+services:
+  mongo:
+    image: mongo:8.0
+    volumes:
+      - demo-mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping:1}).ok ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      MongoDb__ConnectionString: mongodb://mongo:27017
+      MongoDb__DatabaseName: citysurfers_demo
+      DemoData__SeedOnStartup: "true"
+      DemoData__ResetRunsOnStartup: "true"
+      Cors__AllowedOrigins__0: http://localhost:5173
+    depends_on:
+      mongo:
+        condition: service_healthy
+volumes:
+  demo-mongo:
