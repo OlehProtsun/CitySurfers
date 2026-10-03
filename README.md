@@ -1,327 +1,763 @@
-# CitySurfers — Stage 6 MVP demo release candidate
+# 🏃 CitySurfers
 
-.NET 10 modular monolith: API → Application/Infrastructure; Application → Domain.
-MongoDB-specific code stays in Infrastructure. Domain owns run state and lifecycle rules.
+### Turn every run into a game.
 
-## Frontend handoff and release
+**CitySurfers** is a gamified running platform that transforms real-world running into a competitive experience.
 
-Start with [MVP frontend handoff](docs/MVP_FRONTEND_HANDOFF.md): configure `API_BASE_URL`,
-follow login → Home → start/progress/finish → Home, and lazy-load dedicated screens.
-Demo login validates fictional credentials but issues no token/session; the server resolves a shared demo user.
-Backend Core MVP feature work and successful contracts are frozen for the hackathon.
-Keep routes, JSON field names, success statuses and meanings stable; compatible optional additions and defect fixes remain possible.
-Stage 7 adds the React mobile-first frontend. Hosting remains outside this stage.
+Instead of seeing only distance, pace and time, runners get immediate competitive goals:
 
-One-command local fallback (API Production + private Mongo, seed/reset enabled):
+> **Run 1.1 km more → overtake another runner → move from #38 to #37.**
 
-```sh
-docker compose -f docker-compose.demo.yml up --build
-# Stop and remove only the local demo data:
-docker compose -f docker-compose.demo.yml down -v
-```
+The idea is simple: make every extra kilometer feel meaningful.
 
-API is `http://localhost:8080`; readiness is `/health/ready`.
-Every API startup resets demo-user runs; the configured local browser origin is `http://localhost:5173`.
-See [MVP deployment runbook](docs/MVP_DEPLOYMENT.md) for environment variables, Mongo connectivity,
-CORS, TLS termination, reset/persistence choices and the provider-neutral deployment boundary.
+---
 
-```powershell
-pwsh -NoProfile -File tests/Stage6.ReleaseSmoke.ps1
-pwsh -NoProfile -File tests/Stage6.RemoteSmoke.ps1 -BaseUrl https://your-api-host
-```
+## ⚡ Built in ~7 Hours at HackYeah 2026
 
-Release smoke builds the actual Dockerfile and uses temporary isolated Mongo/Production API resources.
-Remote smoke needs only a public URL; default checks do not mutate runs.
-Optional `-FrontendOrigin` checks CORS; **`-FullDemo` explicitly modifies demo state** and requires a fresh dedicated demo.
-No remote Mongo credentials are required. Both scripts return non-zero on failure.
-CI in `.github/workflows/backend-ci.yml` restores, builds and tests Release on push/pull requests with .NET 10,
-without Mongo/cloud secrets or automated deployment. Docker release verification stays a separate smoke gate.
+CitySurfers was created as a rapid full-stack MVP during **HackYeah 2026 in Kraków**.
 
-## Build and test
+HackYeah 2026 is the **12th edition of one of Europe's largest in-person hackathons**, bringing thousands of developers, designers and technology enthusiasts together at **TAURON Arena Kraków** for a 24-hour building marathon.
 
-Install the .NET 10 SDK, then run from the repository root:
+While the hackathon provides a 24-hour development window, the core CitySurfers MVP presented in this repository was built in approximately:
 
-```sh
-dotnet restore CitySurfers.sln
-dotnet build CitySurfers.sln --no-restore
-dotnet test CitySurfers.sln --no-build --no-restore
-```
+# **7 hours.**
 
-Unit and API integration tests use replacement stores, initialization and health checks; they never connect to Atlas.
+The goal was not to create a collection of disconnected mockups.
 
-## Configuration and local startup
+The goal was to prove that the complete product loop could work end-to-end:
 
-Set `MongoDb__ConnectionString` in your local environment to an Atlas URI using a dedicated database user.
-Atlas must allow the machine or hosting provider's network access; the database user needs access to the configured database, including index creation.
+**idea → architecture → backend → database → frontend → gameplay simulation → automated validation**
 
-| Variable | Default / purpose |
-| --- | --- |
-| `MongoDb__ConnectionString` | Required; secret supplied outside source control |
-| `MongoDb__DatabaseName` | `citysurfers` |
-| `DemoData__SeedOnStartup` | `true`; set to `false` to disable inserting demo accounts |
-| `DemoData__ResetRunsOnStartup` | `false`; opt-in deletion of demo-user runs on API startup; requires seeding |
-| `Cors__AllowedOrigins__0` | Deployed frontend origin, e.g. `https://frontend.example` |
-| `ASPNETCORE_ENVIRONMENT` | Use `Production` for deployment |
-| `ASPNETCORE_HTTP_PORTS` | `8080` in the Docker image |
+---
 
-Development allows `http://localhost:5173`. Production allows only explicitly configured origins.
-Origins must include HTTP(S) scheme and host/port, without paths or trailing slashes. CORS credentials are disabled.
+# 🎯 The Problem
 
-```sh
-dotnet run --project src/CitySurfers.Api
-```
+Running apps are great at telling you what you already did.
 
-The development launch profile listens at `http://localhost:5092`.
-OpenAPI is at `/openapi/v1.json` in Development only. Sample requests are in
-`src/CitySurfers.Api/CitySurfers.Api.http`.
+But they are often less effective at answering:
 
-Startup validates Mongo configuration, ensures a unique username index, and optionally inserts `demo / 1234`.
-The upsert preserves existing account data and creation timestamps. Index initialization still runs when seeding is disabled.
-Missing/invalid Mongo configuration or failed initialization stops startup with a sanitized error.
+> **Why should I run one more kilometer?**
 
-## API
+Imagine planning a 5 km run and wanting to stop at 4 km.
 
-| Endpoint | Behavior |
-| --- | --- |
-| `GET /health` | `200` process liveness; no database query |
-| `GET /health/ready` | `200` when Mongo responds; `503` when unavailable |
-| `POST /api/auth/login` | Persisted user data on `200`; generic `401` for invalid credentials |
-| `GET /api/home` | Compact bootstrap: today rank/points, nullable active-run metrics, existing primary next goal; idle is `200` |
-| `POST /api/runs` | `201` active run; `409` if the demo user already has one |
-| `GET /api/runs/active` | Active run and competition snapshot; `404` if none exists |
-| `GET /api/runs/{runId}` | Active run response or completed post-run summary; `404` for missing/foreign runs |
-| `PATCH /api/runs/{runId}/progress` | Updated metrics, competition snapshot, and newly created `OVERTAKE` events |
-| `POST /api/runs/{runId}/finish` | Final progress and persistent post-run summary; `409` if already completed |
-| `GET /api/runs/history?limit=10` | Current user's completed runs, newest first; limit 1–50, default 10 |
-| `GET /api/progress` | Real lifetime, current-week/month, previous-month aggregates and monthly comparison |
-| `GET /api/leaderboards/today` | Real current-user daily points, demo top 10 and nearby ranks |
-| `GET /api/leaderboards/month` | Real current-user monthly points, demo top 10 and nearby ranks |
-| `GET /api/rivals/current` | Monthly current-user rank/points and optional rival directly above |
-| `GET /api/goals/next` | Active-run overtake goal, monthly rival fallback, or null |
-| `GET /api/map/activity?period=today` | Aggregate demo Kraków zones; live/today/month, default today |
+Normally, nothing meaningful happens if you stop.
 
-Login request: `{"username":"demo","password":"1234"}`.
-Success contains only `id`, `username`, and `displayName`.
-Malformed/missing inputs return `400` validation Problem Details.
-Unexpected request failures return sanitized `500` Problem Details, including when the client requests a non-JSON content type.
-Logs include exception type and request trace ID; driver exception text and credentials are not logged.
+CitySurfers adds an immediate consequence:
 
-### Demo run flow
+> **“1.1 km more and you will overtake Runner_42 and move from #38 to #37.”**
 
-Run endpoints resolve the persisted `demo` user server-side through `ICurrentUserAccessor`.
-Login issues no session; requests do not accept a user id. Both demo identity and competition are replaceable through DI.
-Targets are Runner_92 at 1200 m (+16), Marta at 2500 m (+14), Runner_17 at 4000 m (+11), and Kamil_24 at 5500 m (+18).
-Each target awards once and improves the starting rank of 41 by one. One request can cross multiple targets.
+Instead of one large fitness goal, a run becomes a sequence of small, visible and achievable competitive objectives.
 
-```sh
-curl -X POST http://localhost:5092/api/auth/login \
-  -H 'Content-Type: application/json' -d '{"username":"demo","password":"1234"}'
-curl -X POST http://localhost:5092/api/runs
-# Replace RUN_ID with the returned id.
-curl -X PATCH http://localhost:5092/api/runs/RUN_ID/progress \
-  -H 'Content-Type: application/json' -d '{"distanceMeters":2800,"durationSeconds":840}'
-curl http://localhost:5092/api/runs/active
-curl -X POST http://localhost:5092/api/runs/RUN_ID/finish \
-  -H 'Content-Type: application/json' -d '{"distanceMeters":6800,"durationSeconds":2210}'
-curl http://localhost:5092/api/runs/RUN_ID
-```
+---
 
-Progress and finish require both non-negative, non-decreasing distance and duration; invalid values return `400` Problem Details.
-Completed runs cannot change. Concurrent conflicting writes return `409`; reload the run before retrying.
-Pace is seconds/km, or `null` at zero distance. UTC timestamps use millisecond precision for consistent Mongo round trips.
-The `runs` collection stores all metrics and overtakes. A partial unique `userId + status` index prevents multiple active runs while allowing completed history.
+# 💡 The Concept
 
-### Stage 3 read side
+CitySurfers adds a multiplayer game layer on top of real-world running.
 
-```sh
-curl 'http://localhost:5092/api/runs/history?limit=10'
-curl http://localhost:5092/api/progress
-curl http://localhost:5092/api/leaderboards/today
-curl http://localhost:5092/api/leaderboards/month
-curl 'http://localhost:5092/api/map/activity?period=live'
-```
+During a run, the application can show:
 
-`IRunHistoryReader` reads completed runs from MongoDB. `ProgressService` calculates completed-run statistics,
-including weighted pace: total duration / total distance in kilometres. A missing pace is `null`.
-Monthly comparison subtracts previous month from current month; a negative pace delta means faster.
-Periods use Europe/Warsaw local calendar boundaries (weeks start Monday), converted to UTC with daylight-saving support.
-Run membership uses `startedAtUtc`; period starts are inclusive and ends exclusive.
+- your current city ranking;
+- the runner ahead of you;
+- distance required to overtake them;
+- points available for an overtake;
+- rank progression;
+- daily and monthly leaderboards;
+- your current rival;
+- personal progress;
+- city running activity.
 
-`LeaderboardService` sums persisted completed-run points and includes an active run when it started in that period.
-A run transitioning to completed is counted once. `ILeaderboardProvider` supplies deterministic demo competitors;
-their ranks and totals are presentation data, and no fake users or leaderboard documents are persisted.
-`IActivityMapProvider` supplies deterministic aggregate zones at approximate public-area centers.
-Map coordinates never represent individual runners; there is no GPS ingestion or external map service.
-Only the existing `users` and `runs` collections are used. History/progress and current-user scores survive API restarts.
-Empty activity returns `200` with empty history or zero statistics/scores. Invalid history limits and map periods return `400` Problem Details.
-
-### Stage 4 motivation
-
-```sh
-curl http://localhost:5092/api/rivals/current
-curl http://localhost:5092/api/goals/next
-```
-
-`RivalService` reuses the current monthly leaderboard. The temporary MVP rival is the competitor
-immediately above the current user; rank one returns `rival: null`. The response includes monthly
-UTC boundaries, current-user rank/points and optional rival rank/points. `pointsGap` is
-max(0, rival points - user points); `pointsToPass` is max(1, rival points - user points + 1).
-Current-user points derive from persisted runs, including active-run points under existing rules;
-other competitors remain deterministic demo data. Rivals are derived, never persisted.
-
-`NextGoalService` first returns `run_overtake` from the existing active-run competition snapshot,
-including remaining distance, potential points and rank transition. Without an active target,
-it returns `rival_points` from the monthly rival's `pointsToPass`. Without either source,
-it returns `200` with `goal: null`. Models contain semantic data, not localized UI sentences.
-No new MongoDB collections, rival relationships or fake competitor documents are introduced.
-
-### Stage 5 frontend bootstrap and repeatable demo
-
-After demo login, `GET /api/home` supplies `today` (rank and points), nullable `activeRun`
-(id, startedAtUtc, distanceMeters, durationSeconds, averagePaceSecondsPerKm), and nullable `nextGoal`.
-It composes the existing leaderboard and goal services; it does not include full history, leaderboards,
-analytics or map zones. Pace is the stored seconds/km value, nullable at zero distance.
-Idle and null-goal states return `200` with explicit JSON nulls.
-
-Recommended frontend sequence:
+The central gameplay mechanic is the **Overtake**.
 
 ```text
-POST /api/auth/login
-GET  /api/home
+#38
 
-# Dedicated screens / lazy loading
-GET /api/map/activity
-GET /api/leaderboards/today
-GET /api/leaderboards/month
-GET /api/progress
-GET /api/runs/history
+Runner_92 is ahead
+1.1 km remaining
 
-# During and after a run
-POST  /api/runs
-PATCH /api/runs/{runId}/progress
-POST  /api/runs/{runId}/finish
-GET   /api/home
+        ↓
+
+OVERTAKE!
+
+Runner_92 passed
+#38 → #37
+
++16 points
 ```
 
-Today and Month use the same replaceable demo competitor ladder: 8, 24, 36, 50, 64 points
-around the fresh user. Real current-user points still aggregate persisted runs using each period's boundaries.
-A clean demo progresses from 0 points/#41 through 16/#40, 30/#39, 41/#38 to 59/#37.
-After all four overtakes and finish, the monthly rival is #36 with 64 points: gap 5, points to pass 6.
-Home prefers `run_overtake` while a target exists and falls back to `rival_points` afterward.
-These competitor scores are demo presentation data, not permanent scoring rules.
+This turns physical activity into a continuous game loop.
 
-**Reset warning:** `DemoData__ResetRunsOnStartup=true` deletes all active and completed runs belonging
-only to the persisted demo user on every API startup. It preserves that user's document, other users,
-other users' runs, collections and indexes. Leave it `false` (the default) to preserve runs across restarts.
-Reset requires `DemoData__SeedOnStartup=true`; the invalid combination fails startup validation.
-There is no HTTP reset endpoint. Enable this switch intentionally through operator configuration for a fresh demo.
+---
 
-For browser integration, set `Cors__AllowedOrigins__0=https://frontend.example` to your frontend origin
-(and numbered entries for additional origins). Production permits only configured origins; credentials are disabled.
-Allowed/disallowed origins and PATCH content-type preflight are covered by integration tests and the Mongo smoke.
+# 🕹️ Hackathon Demo Flow
 
-## Docker deployment
+The repository contains a deterministic end-to-end demo that runs against the real backend.
 
-```sh
-docker build -t citysurfers-api .
+```text
+Login
+  ↓
+Home
+  ↓
+Start Run
+  ↓
+Runner_92
+#41 → #40
++16 pts
+  ↓
+Marta
+#40 → #39
++14 pts
+  ↓
+Runner_17
+#39 → #38
++11 pts
+  ↓
+Kamil_24
+#38 → #37
++18 pts
+  ↓
+Finish Run
+  ↓
+59 points
+  ↓
+New monthly rival
+#36 — 64 points
+  ↓
+6 more points to overtake
 ```
 
-Copy `.env.example` to a local `.env`, replace its placeholders, and keep that file outside source control.
-Docker reads this file; `dotnet run` does not load `.env` automatically.
+The frontend does **not** calculate authoritative rewards or ranking changes.
 
-```sh
-docker run --rm --name citysurfers-api --env-file .env -p 8080:8080 citysurfers-api
+It submits progress to the backend, while the server determines:
+
+- overtakes;
+- points;
+- ranking changes;
+- competition targets;
+- next goals;
+- post-run results.
+
+---
+
+# ✨ MVP Features
+
+### 🏃 Running Session
+
+- Start a run
+- Update distance and duration
+- Calculate pace
+- Finish a run
+- Persist completed sessions
+- Resume authoritative state after refresh
+
+### ⚔️ Overtake System
+
+- Dynamic next target
+- Distance-to-overtake goals
+- Overtake events
+- Point rewards
+- Ranking progression
+
+### 🏆 Leaderboards
+
+- Daily leaderboard
+- Monthly leaderboard
+- Current-user ranking
+- Nearby competitors
+
+### 🎯 Rival System
+
+When no active run target exists, CitySurfers can select the runner directly above the user in the monthly leaderboard.
+
+The app shows:
+
+- rival position;
+- rival points;
+- point gap;
+- points required to pass them.
+
+### 📈 Personal Progress
+
+- Running history
+- Lifetime statistics
+- Weekly statistics
+- Monthly statistics
+- Pace aggregation
+- Month-to-month comparison
+
+### 🗺️ Kraków Activity Map
+
+The MVP includes an interactive city activity map based on aggregate running zones around Kraków.
+
+For privacy, demo map points represent **aggregate activity areas**, not individual runner GPS coordinates.
+
+### 📱 Mobile-First UI
+
+The frontend provides dedicated screens for:
+
+- Home
+- Active Run
+- Ranking
+- Activity Map
+- Progress
+- Demo Login
+- Post-run feedback / overtake interactions
+
+---
+
+# 🏗️ Architecture
+
+CitySurfers uses a modular **N-Layer architecture** with clear dependency boundaries.
+
+```text
+┌──────────────────────────────────────────────┐
+│              React Frontend                  │
+│       TypeScript · Vite · Tailwind           │
+└─────────────────────┬────────────────────────┘
+                      │ REST API
+                      ▼
+┌──────────────────────────────────────────────┐
+│               ASP.NET Core API               │
+│        HTTP · Validation · API Contracts      │
+└─────────────────────┬────────────────────────┘
+                      │
+                      ▼
+┌──────────────────────────────────────────────┐
+│             Application Layer                │
+│     Use Cases · Services · Interfaces        │
+└─────────────────────┬────────────────────────┘
+                      │
+                      ▼
+┌──────────────────────────────────────────────┐
+│                Domain Layer                  │
+│       Business Rules · Run Lifecycle         │
+└──────────────────────────────────────────────┘
+
+            ▲
+            │ implements abstractions
+            │
+
+┌──────────────────────────────────────────────┐
+│            Infrastructure Layer              │
+│          MongoDB · Persistence               │
+└─────────────────────┬────────────────────────┘
+                      │
+                      ▼
+                 ┌─────────┐
+                 │ MongoDB │
+                 └─────────┘
 ```
 
-The container uses the runtime's non-root application user and contains no database or deployment secrets.
-Configure HTTPS and the public origin at your hosting provider.
-Check `/health`, `/health/ready`, and correct/incorrect login after deployment.
+The project is intentionally implemented as a **modular monolith**, keeping the MVP simple while preserving boundaries that allow individual components to be replaced later.
 
-Demo authentication is presentation-only: it issues no token/session and stores only fictional demo credentials.
-Before production, replace `DemoAuthService` and demo credential storage with real authentication.
+---
 
-## Validation status
+# 🧱 Backend Structure
 
-See `PLAN.md` for the Stage 7 checklist and acceptance criteria.
-Stage 6 local validation passed: Release build with zero warnings/errors, 162 automated tests,
-frontend JSON-contract flow, actual Dockerfile build, Production release smoke, Stage 5 Mongo regression,
-Compose full demo/reset, remote smoke safe/full modes and failure-path cleanup.
-Development OpenAPI works; Production returns 404. Remote hosting connectivity and GitHub-hosted CI
-execution require the eventual deployed URL/pushed workflow and were not verified locally.
-Local MongoDB smoke checks verify persistence, restart idempotence, unique username enforcement, seeding configuration, and database outage behavior.
-These checks do not establish connectivity to your Atlas cluster.
-
-Stage 2 validation: solution build (zero warnings), all 75 automated tests, Docker image build, and the real Mongo run flow passed.
-Active and completed runs survived API container restarts; concurrent starts, progress, and finishes did not duplicate rewards.
-To repeat the real Mongo check after building the image, with the configured local `citysurfers-mongo` container running:
-
-```powershell
-pwsh -NoProfile -File tests/Stage2.MongoSmoke.ps1 -ApiImage citysurfers-api
+```text
+src/
+├── CitySurfers.Api
+├── CitySurfers.Application
+├── CitySurfers.Domain
+└── CitySurfers.Infrastructure
 ```
 
-The check requires no existing active demo run, leaves one completed demo run in `citysurfers`, and removes its temporary API container.
+### `CitySurfers.Api`
 
-Stage 3 validation: solution build with zero warnings/errors, all 126 automated tests, OpenAPI, Docker build,
-the existing Stage 2 real Mongo concurrency/restart checks, and the Stage 3 real Mongo flow passed.
-The Stage 3 check compares score/statistic deltas against persisted Mongo runs and verifies history/progress/leaderboards after restart.
+ASP.NET Core presentation layer.
 
-```powershell
-docker build -t citysurfers-api:stage3 .
-pwsh -NoProfile -File tests/Stage3.MongoSmoke.ps1
+Responsible for:
+
+- REST endpoints;
+- HTTP contracts;
+- configuration;
+- dependency composition;
+- error handling;
+- health endpoints;
+- CORS.
+
+### `CitySurfers.Application`
+
+Application orchestration and use cases.
+
+Contains abstractions and services responsible for application workflows while remaining independent from MongoDB implementation details.
+
+### `CitySurfers.Domain`
+
+Core business logic.
+
+Contains rules related to:
+
+- running lifecycle;
+- competition;
+- state transitions;
+- domain behaviour.
+
+The domain has no dependency on ASP.NET Core or MongoDB.
+
+### `CitySurfers.Infrastructure`
+
+External technical implementations.
+
+Currently responsible primarily for:
+
+- MongoDB persistence;
+- repositories/stores;
+- database initialization;
+- infrastructure configuration.
+
+---
+
+# 🛠️ Technology Stack
+
+## Backend
+
+- **C#**
+- **.NET 10**
+- **ASP.NET Core**
+- REST API
+- Built-in Dependency Injection
+- Async I/O
+- Strongly typed configuration
+- Problem Details error handling
+- OpenAPI for development
+- xUnit
+
+## Database
+
+- **MongoDB**
+- MongoDB .NET Driver
+- Persistent users and runs
+- Database indexes
+- Health/readiness verification
+
+## Frontend
+
+- **React**
+- **TypeScript**
+- **Vite**
+- **Tailwind CSS**
+- React Router
+- TanStack Query
+- Motion
+- Lucide
+- Recharts
+
+## Maps
+
+- **MapLibre GL JS**
+- OpenFreeMap
+- OpenStreetMap-derived map data
+
+## Testing
+
+- xUnit
+- Vitest
+- React Testing Library
+- Playwright
+- API integration tests
+- Docker/MongoDB smoke tests
+- Production-mode smoke tests
+- End-to-end browser tests
+
+## DevOps
+
+- Docker
+- Docker Compose
+- Multi-stage container builds
+- Non-root runtime container
+- GitHub Actions
+- Backend CI
+- Frontend CI
+- Environment-based configuration
+
+---
+
+# 🤖 AI Engineering
+
+CitySurfers was also an experiment in **structured AI-assisted software engineering**.
+
+AI was used as an engineering accelerator — not as an uncontrolled code generator.
+
+The development workflow was based on three major project-level context layers:
+
+```text
+AppContext.md
+      ↓
+What are we building?
+
+AGENT.md
+      ↓
+How must it be engineered?
+
+PLAN.md
+      ↓
+What should be implemented next?
+
+      ↓
+
+AI-assisted implementation
+
+      ↓
+
+Build + Tests + Smoke Validation
 ```
 
-The Stage 3 check uses the configured local `citysurfers-mongo` container, requires no active demo run,
-leaves one completed demo run, and removes its temporary API container. It does not verify Atlas connectivity.
+## Context Engineering
 
-Stage 4 validation: solution build with zero warnings/errors, all 145 automated tests, OpenAPI response
-schemas, and Stage 2–4 real Mongo smoke flows passed. The Docker image built using cached base-image
-digests after registry tag lookup returned EOF; see `PLAN.md` for the validation detail.
+`AppContext.md` describes the complete product vision, including:
 
-To repeat the Stage 4 real Mongo flow:
+- problem definition;
+- user experience;
+- game mechanics;
+- ranking concepts;
+- running data;
+- product boundaries;
+- MVP scope;
+- future product direction.
 
-```powershell
-docker build -t citysurfers-api:stage4 .
-pwsh -NoProfile -File tests/Stage4.MongoSmoke.ps1
+This gives AI agents persistent high-level product context instead of relying on isolated prompts.
+
+## Engineering Guardrails
+
+`AGENT.md` defines the engineering rules that AI-assisted development must follow:
+
+- N-Layer Architecture;
+- SOLID principles;
+- Dependency Inversion;
+- separation of concerns;
+- replaceable modules;
+- isolated MVP implementations;
+- thin API endpoints;
+- testability;
+- production-oriented configuration;
+- controlled scope.
+
+## Plan-Driven Development
+
+Implementation was divided into explicit stages through `PLAN.md`.
+
+Instead of asking an AI agent to repeatedly analyze the entire repository and invent a new roadmap, each stage provides:
+
+- a defined goal;
+- constraints;
+- implementation tasks;
+- architectural boundaries;
+- acceptance criteria;
+- validation requirements.
+
+The agent then executes that plan incrementally.
+
+## AI + Verification
+
+Generated or AI-assisted code was not treated as correct simply because it compiled.
+
+Changes were validated through:
+
+```text
+Implementation
+     ↓
+Unit Tests
+     ↓
+Integration Tests
+     ↓
+Real MongoDB Smoke Tests
+     ↓
+Docker Production Smoke
+     ↓
+Frontend Tests
+     ↓
+Playwright E2E
 ```
 
-The check reuses the local `citysurfers-mongo` container, requires no active demo run,
-leaves one completed run and removes its temporary API container. It verifies idle and active goals,
-distance/target changes, monthly fallback, Mongo score deltas, unchanged collections and restart persistence.
-Accumulated monthly points may yield rank one; in that case null rival/goal is expected.
+This approach combines the development speed of AI-assisted coding with traditional software-engineering controls.
 
-Stage 5 validation: build with zero warnings/errors, all 161 automated tests, Home and existing OpenAPI
-contracts, CORS integration tests, Docker image build, and the real Mongo Stage 5 smoke passed.
-Registry tag lookup returned EOF; Docker validation used an ignored copy of the existing Dockerfile
-with only the .NET 10 base-image references pinned to cached digests. The repository Dockerfile is unchanged.
+### The principle
 
-```powershell
-docker build -t citysurfers-api:stage5 .
-pwsh -NoProfile -File tests/Stage5.MongoSmoke.ps1
+> **Use AI to increase implementation speed, while architecture, contracts and automated verification constrain the solution.**
+
+For a hackathon environment, this allowed significantly faster iteration without intentionally sacrificing the structure needed to continue development after the event.
+
+---
+
+# 🧠 Engineering Decisions
+
+### Modular Monolith over Microservices
+
+A hackathon MVP does not need premature distributed-system complexity.
+
+A modular monolith provides:
+
+- fast development;
+- simple deployment;
+- clear domain boundaries;
+- future extensibility.
+
+### Replaceable MVP Components
+
+Temporary hackathon implementations are isolated behind abstractions.
+
+For example, deterministic competition providers can later be replaced with systems driven by real users and live data without rewriting unrelated modules.
+
+### Backend-Authoritative Game State
+
+The frontend never decides whether an overtake occurred.
+
+The server owns:
+
+- scoring;
+- rank transitions;
+- targets;
+- rewards;
+- run state.
+
+This keeps future mobile/web clients consistent.
+
+### Privacy-Aware Map Design
+
+The current activity map exposes aggregate areas rather than simulated individual GPS locations.
+
+### Deterministic Demo Mode
+
+Hackathon demonstrations need to be repeatable.
+
+The local environment can reset demo runs on startup so every presentation starts from the same known state.
+
+---
+
+# 🐳 Run Locally
+
+## Requirements
+
+You need:
+
+- Docker
+- Docker Compose
+- Node.js
+- npm
+
+---
+
+## 1. Start Backend + MongoDB
+
+From the repository root:
+
+```bash
+docker compose -f docker-compose.demo.yml up --build
 ```
 
-The Stage 5 check reuses local `citysurfers-mongo` and creates `citysurfers_stage5_smoke`.
-It refuses an existing database; use `-Database citysurfers_stage5_smoke_unique` if needed.
-It verifies clean Home, all four rank transitions in both leaderboards, 59-point finish, the 6-point rival,
-CORS/preflight, OpenAPI, history/progress, persistence with reset disabled, and reset with it enabled.
-An existing demo account with a non-default id, unrelated users/runs, and indexes verify reset isolation.
-The check removes its temporary API container and only the database it created, including on failure.
-It does not verify Atlas connectivity or deployed frontend behavior.
+This starts:
 
-References: [MongoDB C# driver](https://www.mongodb.com/docs/drivers/csharp/current/),
-[ASP.NET Core](https://learn.microsoft.com/aspnet/core/).
+```text
+MongoDB
+   +
+CitySurfers API
+```
 
-## Stage 7 frontend
+The API is exposed on:
 
-The React + TypeScript + Vite app lives in [frontend/](frontend/README.md).
-Start the Compose API at `http://localhost:8080`, then:
+```text
+localhost:8080
+```
 
-```sh
+MongoDB runs inside Docker, so no external MongoDB instance is required for the local hackathon demo.
+
+---
+
+## 2. Start Frontend
+
+Open another terminal:
+
+```bash
 cd frontend
+
 npm ci
 cp .env.example .env
 npm run dev
 ```
 
-Open `http://localhost:5173`. Demo login is `demo / 1234`.
-Run `pwsh -NoProfile -File tests/Stage7.FrontendSmoke.ps1` for the isolated real-backend/production-frontend browser smoke.
-See the frontend README for environment settings, simulator semantics, map attribution, checks and MVP limitations.
+Open:
+
+```text
+localhost:5173
+```
+
+---
+
+## 3. Demo Login
+
+```text
+Username: demo
+Password: 1234
+```
+
+Then:
+
+```text
+Enter the city
+→ Start run
+→ Catch four runners
+→ Finish
+→ View result
+→ Check ranking / progress / map
+```
+
+---
+
+# 🧪 Validation
+
+## Backend
+
+```bash
+dotnet restore CitySurfers.sln
+dotnet build CitySurfers.sln --no-restore
+dotnet test CitySurfers.sln --no-build --no-restore
+```
+
+The backend contains extensive automated coverage around:
+
+- run state transitions;
+- ranking behaviour;
+- scoring;
+- overtakes;
+- validation;
+- leaderboards;
+- progress aggregation;
+- MongoDB persistence;
+- concurrency;
+- API contracts.
+
+---
+
+## Frontend
+
+```bash
+cd frontend
+
+npm run lint
+npm run typecheck
+npm run test:run
+npm run build
+```
+
+E2E:
+
+```bash
+npx playwright install chromium
+npm run e2e
+```
+
+Playwright validates the complete browser demo against the real backend.
+
+---
+
+# 🔄 CI
+
+GitHub Actions automatically validates backend and frontend changes.
+
+The frontend pipeline performs:
+
+```text
+Install
+→ Lint
+→ Type Check
+→ Tests
+→ Production Build
+```
+
+The backend pipeline performs restore, Release build and automated testing without requiring cloud database credentials.
+
+---
+
+# 🔐 Current MVP Boundaries
+
+CitySurfers is a **hackathon MVP**, not a production fitness platform.
+
+The current version intentionally does not include:
+
+- real GPS recording;
+- real multi-user authentication;
+- production user accounts;
+- live WebSocket competition;
+- fitness-device integrations;
+- Strava / Garmin / Apple Health integrations;
+- push notifications;
+- anti-cheat infrastructure;
+- 1v1 matchmaking;
+- production AI Coach;
+- production deployment.
+
+The demo login uses a shared fictional user and does not issue an authentication token.
+
+These constraints are deliberate: the hackathon focused on proving the product concept and architecture rather than pretending unfinished production features already exist.
+
+---
+
+# 🚀 Where It Can Go Next
+
+The architecture was designed so that the current MVP can evolve toward:
+
+```text
+Real GPS
+   ↓
+Real runners
+   ↓
+Live city competition
+   ↓
+Dynamic rivals
+   ↓
+Routes & King of Route
+   ↓
+1v1 races
+   ↓
+Achievements
+   ↓
+Fitness platform integrations
+   ↓
+AI Running Coach
+```
+
+The long-term vision is a platform where:
+
+> **the city itself becomes the game map and every run becomes a multiplayer session.**
+
+---
+
+# 🏁 Hackathon Outcome
+
+In approximately **7 hours**, CitySurfers went from a product concept to a working full-stack prototype containing:
+
+- a structured .NET backend;
+- MongoDB persistence;
+- REST contracts;
+- running-session lifecycle;
+- gamified overtakes;
+- ranking and rival systems;
+- a mobile-first React interface;
+- interactive Kraków map;
+- Dockerized demo environment;
+- automated tests;
+- CI;
+- end-to-end browser validation;
+- an AI-assisted engineering workflow.
+
+The project demonstrates not only rapid prototyping, but the ability to combine:
+
+**product thinking + backend architecture + frontend development + DevOps + testing + AI engineering**
+
+under extreme time constraints.
+
+---
+
+## Status
+
+**Hackathon MVP / Proof of Concept**
+
+Built for **HackYeah 2026 — Kraków, Poland**.
+
+**Build time: ~7 hours.**
+
+---
+
+### CitySurfers
+
+**Run. Compete. Overtake.**
